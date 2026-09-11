@@ -403,22 +403,78 @@
     updateState();
   }
 
+  // ===== Generisanje sličica (thumbnails) za raspoređivanje =====
+  // NIJE dovoljno samo staviti <img src="blob:..."> na originalnu fotografiju
+  // (probano, i dalje pola ostane prazno) — browser SVEJEDNO mora da dekodira
+  // i drži u memoriji original u PUNOJ rezoluciji dok god je <img> na strani,
+  // a kod 40 telefonskih fotografija (po 10-20+ MB, ogromne rezolucije) to je
+  // i dalje previše odjednom pa deo dekodiranja tiho ne uspe.
+  //
+  // Zato ovde SLIČICU stvarno umanjimo pre prikaza (createImageBitmap sa
+  // resizeWidth), nacrtamo na mali canvas i to koristimo kao src — memorija
+  // po slici pada sa "cela fotografija" na "par stotina piksela". Dodatno,
+  // obrada ide u redu sa ograničenim brojem paralelnih poslova (umesto svih
+  // 40 odjednom) da ne opteretimo slabije telefone/Safari.
+  //
+  // Sam UPLOAD ovo uopšte ne dotiče — i dalje se šalje originalni File objekat
+  // u punom kvalitetu, ovo je isključivo za prikaz sličica radi raspoređivanja.
+  var THUMB_TARGET_WIDTH = 480;
+  var THUMB_CONCURRENCY = 4;
+  var thumbQueue = [];
+  var thumbActive = 0;
+
+  function queueThumb(entry, img) {
+    thumbQueue.push({ entry: entry, img: img });
+    pumpThumbQueue();
+  }
+
+  function pumpThumbQueue() {
+    while (thumbActive < THUMB_CONCURRENCY && thumbQueue.length > 0) {
+      var job = thumbQueue.shift();
+      thumbActive++;
+      loadThumbImage(job.entry, job.img).then(function () {
+        thumbActive--;
+        pumpThumbQueue();
+      });
+    }
+  }
+
+  function loadThumbImage(entry, img) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(entry.file, { resizeWidth: THUMB_TARGET_WIDTH, resizeQuality: 'medium' })
+        .then(function (bitmap) {
+          var canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          img.src = canvas.toDataURL('image/jpeg', 0.82);
+        })
+        .catch(function () {
+          return loadThumbFallback(entry, img);
+        });
+    }
+    return loadThumbFallback(entry, img);
+  }
+
+  function loadThumbFallback(entry, img) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(entry.file);
+      entry.objectUrl = url;
+      img.onload = function () { resolve(); };
+      img.onerror = function () { resolve(); };
+      img.src = url;
+    });
+  }
+
   function renderThumb(entry) {
     var div = document.createElement('div');
     div.className = 'thumb';
     div.dataset.id = entry.id;
     var img = document.createElement('img');
-    // VAŽNO: koristimo URL.createObjectURL umesto FileReader.readAsDataURL.
-    // readAsDataURL učitava CEO fajl u memoriju kao base64 tekst — kod 40
-    // originalnih fotografija (po nekoliko MB svaka) to ume da bude i preko
-    // 500MB-1GB odjednom, pa browser tiho "ispusti" deo tih učitavanja i
-    // pola sličica ostane prazno. createObjectURL samo pravi referencu ka
-    // fajlu (skoro nula memorije) i radi odmah, sinhrono — bez ovog problema.
-    // Ne utiče na sam upload (on i dalje šalje originalni File objekat direktno).
-    var objectUrl = URL.createObjectURL(entry.file);
-    entry.objectUrl = objectUrl;
-    img.src = objectUrl;
     div.appendChild(img);
+    queueThumb(entry, img);
 
     var num = document.createElement('div');
     num.className = 'num';

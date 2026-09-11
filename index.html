@@ -431,16 +431,22 @@
   // NIJEDAN browser (uključujući i sam Safari) ne ume pouzdano da DEKODIRE i
   // prikaže HEIC kroz <img> ili canvas/createImageBitmap — nije stvar memorije,
   // browser prosto ne razume taj format, pa sličica ostane prazna. Zato HEIC/
-  // HEIF fajlove prvo konvertujemo u JPEG u samom browseru (biblioteka
-  // heic2any, učita se samo kad je stvarno zatreba — da ne opterećujemo sajt
-  // za klijente koji šalju obične JPEG/PNG slike), pa tek od tog JPEG-a pravimo
-  // umanjenu sličicu. UPLOAD ovo ne dotiče — šalje se ORIGINALNI HEIC fajl u
-  // punom kvalitetu, konvertovana verzija je isključivo za prikaz.
+  // HEIF fajlove prvo konvertujemo u JPEG u samom browseru, pa tek od tog
+  // JPEG-a pravimo umanjenu sličicu. UPLOAD ovo ne dotiče — šalje se
+  // ORIGINALNI HEIC fajl u punom kvalitetu, konvertovana verzija je
+  // isključivo za prikaz.
+  //
+  // VAŽNO: koristimo "heic-to" biblioteku, NE "heic2any". heic2any je
+  // testiran direktno na PRAVIM iPhone HEIC fotografijama i redovno je
+  // otkazivao (stara, napuštena biblioteka iz ~2020, star libheif motor koji
+  // ne razume novije varijante HEIC enkodiranja koje iPhone danas koristi).
+  // heic-to se aktivno održava i prati najnovije verzije libheif-a, i
+  // uspešno je konvertovao sve testirane prave iPhone fotografije.
   var HEIC_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
-  var heic2anyPromise = null;
-  var HEIC2ANY_SOURCES = [
-    'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js'
+  var heicToPromise = null;
+  var HEIC_TO_SOURCES = [
+    'https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js',
+    'https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js'
   ];
 
   function isHeicFile(file) {
@@ -461,24 +467,23 @@
 
   // Pokušaj sa dva različita CDN-a (neki mrežni/ad-block filteri blokiraju
   // jedan, ali ne i drugi) pre nego što odustanemo.
-  function ensureHeic2Any() {
-    if (window.heic2any) return Promise.resolve();
-    if (heic2anyPromise) return heic2anyPromise;
-    heic2anyPromise = loadScript(HEIC2ANY_SOURCES[0])
-      .catch(function () { return loadScript(HEIC2ANY_SOURCES[1]); })
+  function ensureHeicTo() {
+    if (window.HeicTo) return Promise.resolve();
+    if (heicToPromise) return heicToPromise;
+    heicToPromise = loadScript(HEIC_TO_SOURCES[0])
+      .catch(function () { return loadScript(HEIC_TO_SOURCES[1]); })
       .catch(function (err) {
-        heic2anyPromise = null;
+        heicToPromise = null;
         throw err;
       });
-    return heic2anyPromise;
+    return heicToPromise;
   }
 
-  // Generička zaštita od "zaglavljivanja": heic2any radi dekodiranje u Web
-  // Worker-u, i ako taj worker iz nekog razloga nikad ne odgovori (npr. neka
-  // varijanta HEIC enkodiranja koju stara biblioteka ne razume), Promise se
-  // NIKAD ne završi — ni uspešno ni greškom — pa bi cela obrada zaglavila
-  // (i sve sledeće slike u redu čekale zauvek). withTimeout garantuje da
-  // se svaka slika "preda" posle nekog vremena i pređe na rezervni prikaz.
+  // Generička zaštita od "zaglavljivanja": ako dekodiranje HEIC-a iz nekog
+  // razloga nikad ne odgovori, Promise se NIKAD ne završi — ni uspešno ni
+  // greškom — pa bi cela obrada zaglavila (i sve sledeće slike u redu
+  // čekale zauvek). withTimeout garantuje da se svaka slika "preda" posle
+  // nekog vremena i pređe na rezervni prikaz.
   function withTimeout(promise, ms, label) {
     return new Promise(function (resolve, reject) {
       var done = false;
@@ -509,7 +514,7 @@
   // Sam UPLOAD ovo uopšte ne dotiče — i dalje se šalje originalni File objekat
   // u punom kvalitetu, ovo je isključivo za prikaz sličica radi raspoređivanja.
   var THUMB_TARGET_WIDTH = 480;
-  var THUMB_CONCURRENCY = 4;
+  var THUMB_CONCURRENCY = 2;
   var thumbQueue = [];
   var thumbActive = 0;
 
@@ -554,26 +559,13 @@
   function loadThumbImage(entry, img, div) {
     var sourcePromise;
     if (isHeicFile(entry.file)) {
-      sourcePromise = ensureHeic2Any()
+      sourcePromise = ensureHeicTo()
         .then(function () {
           return withTimeout(
-            heic2any({ blob: entry.file, toType: 'image/jpeg', quality: 0.7 }),
-            20000,
+            window.HeicTo({ blob: entry.file, type: 'image/jpeg', quality: 0.6 }),
+            30000,
             'HEIC konverzija'
           );
-        })
-        .then(function (converted) {
-          return Array.isArray(converted) ? converted[0] : converted;
-        })
-        .catch(function (err) {
-          // Ako se heic2any-jev worker "zaglavio" i nikad nije odgovorio,
-          // restartuj ga — da sledeća HEIC slika u redu ne nasledi isti
-          // zaglavljeni worker i i sama zauvek čeka.
-          if (window.__heic2any__worker) {
-            try { window.__heic2any__worker.terminate(); } catch (e2) {}
-            window.__heic2any__worker = null;
-          }
-          throw err;
         });
     } else {
       sourcePromise = Promise.resolve(entry.file);

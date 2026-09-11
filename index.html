@@ -408,9 +408,16 @@
     div.className = 'thumb';
     div.dataset.id = entry.id;
     var img = document.createElement('img');
-    var reader = new FileReader();
-    reader.onload = function (e) { img.src = e.target.result; };
-    reader.readAsDataURL(entry.file);
+    // VAŽNO: koristimo URL.createObjectURL umesto FileReader.readAsDataURL.
+    // readAsDataURL učitava CEO fajl u memoriju kao base64 tekst — kod 40
+    // originalnih fotografija (po nekoliko MB svaka) to ume da bude i preko
+    // 500MB-1GB odjednom, pa browser tiho "ispusti" deo tih učitavanja i
+    // pola sličica ostane prazno. createObjectURL samo pravi referencu ka
+    // fajlu (skoro nula memorije) i radi odmah, sinhrono — bez ovog problema.
+    // Ne utiče na sam upload (on i dalje šalje originalni File objekat direktno).
+    var objectUrl = URL.createObjectURL(entry.file);
+    entry.objectUrl = objectUrl;
+    img.src = objectUrl;
     div.appendChild(img);
 
     var num = document.createElement('div');
@@ -423,6 +430,7 @@
     rm.addEventListener('click', function (ev) {
       ev.stopPropagation();
       files = files.filter(function (x) { return x.id !== entry.id; });
+      if (entry.objectUrl) { URL.revokeObjectURL(entry.objectUrl); }
       div.remove();
       updateState();
     });

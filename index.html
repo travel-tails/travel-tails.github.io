@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta property="og:title" content="Travel Tails — Pošalji slike za svoj foto-album">
   <meta property="og:description" content="Izaberi i poređaj slike svojim redosledom za personalizovani Travel Tails foto-album.">
   <meta property="og:type" content="website">
@@ -178,6 +181,14 @@
       cursor: pointer;
     }
     .thumb.sortable-ghost { opacity: 0.3; }
+    .thumb.thumb-error { background: #fdecea; }
+    .thumb.thumb-error::after {
+      content: '⚠ nije prikazano';
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 6px; box-sizing: border-box;
+      font-size: 11px; font-weight: 700; color: #b3261e;
+    }
     .countHint { font-size: 13px; margin-top: 18px; font-weight: 600; font-family: 'Geist', sans-serif; }
     .countHint.ok { color: #1f8a4c; }
     .countHint.bad { color: #c0392b; }
@@ -427,6 +438,10 @@
   // punom kvalitetu, konvertovana verzija je isključivo za prikaz.
   var HEIC_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
   var heic2anyPromise = null;
+  var HEIC2ANY_SOURCES = [
+    'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js'
+  ];
 
   function isHeicFile(file) {
     var type = (file.type || '').toLowerCase();
@@ -434,17 +449,49 @@
     return /\.(heic|heif)$/i.test(file.name || '');
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('script load failed: ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // Pokušaj sa dva različita CDN-a (neki mrežni/ad-block filteri blokiraju
+  // jedan, ali ne i drugi) pre nego što odustanemo.
   function ensureHeic2Any() {
     if (window.heic2any) return Promise.resolve();
     if (heic2anyPromise) return heic2anyPromise;
-    heic2anyPromise = new Promise(function (resolve, reject) {
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
-      s.onload = function () { resolve(); };
-      s.onerror = function () { heic2anyPromise = null; reject(new Error('heic2any load failed')); };
-      document.head.appendChild(s);
-    });
+    heic2anyPromise = loadScript(HEIC2ANY_SOURCES[0])
+      .catch(function () { return loadScript(HEIC2ANY_SOURCES[1]); })
+      .catch(function (err) {
+        heic2anyPromise = null;
+        throw err;
+      });
     return heic2anyPromise;
+  }
+
+  // Generička zaštita od "zaglavljivanja": heic2any radi dekodiranje u Web
+  // Worker-u, i ako taj worker iz nekog razloga nikad ne odgovori (npr. neka
+  // varijanta HEIC enkodiranja koju stara biblioteka ne razume), Promise se
+  // NIKAD ne završi — ni uspešno ni greškom — pa bi cela obrada zaglavila
+  // (i sve sledeće slike u redu čekale zauvek). withTimeout garantuje da
+  // se svaka slika "preda" posle nekog vremena i pređe na rezervni prikaz.
+  function withTimeout(promise, ms, label) {
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var timer = setTimeout(function () {
+        if (done) return;
+        done = true;
+        reject(new Error((label || 'operacija') + ' — isteklo vreme čekanja'));
+      }, ms);
+      promise.then(
+        function (v) { if (!done) { done = true; clearTimeout(timer); resolve(v); } },
+        function (e) { if (!done) { done = true; clearTimeout(timer); reject(e); } }
+      );
+    });
   }
 
   // ===== Generisanje sličica (thumbnails) za raspoređivanje =====
@@ -466,8 +513,8 @@
   var thumbQueue = [];
   var thumbActive = 0;
 
-  function queueThumb(entry, img) {
-    thumbQueue.push({ entry: entry, img: img });
+  function queueThumb(entry, img, div) {
+    thumbQueue.push({ entry: entry, img: img, div: div });
     pumpThumbQueue();
   }
 
@@ -475,7 +522,7 @@
     while (thumbActive < THUMB_CONCURRENCY && thumbQueue.length > 0) {
       var job = thumbQueue.shift();
       thumbActive++;
-      loadThumbImage(job.entry, job.img).then(function () {
+      loadThumbImage(job.entry, job.img, job.div).then(function () {
         thumbActive--;
         pumpThumbQueue();
       });
@@ -504,34 +551,54 @@
     });
   }
 
-  function loadThumbImage(entry, img) {
+  function loadThumbImage(entry, img, div) {
     var sourcePromise;
     if (isHeicFile(entry.file)) {
       sourcePromise = ensureHeic2Any()
         .then(function () {
-          return heic2any({ blob: entry.file, toType: 'image/jpeg', quality: 0.7 });
+          return withTimeout(
+            heic2any({ blob: entry.file, toType: 'image/jpeg', quality: 0.7 }),
+            20000,
+            'HEIC konverzija'
+          );
         })
         .then(function (converted) {
           return Array.isArray(converted) ? converted[0] : converted;
+        })
+        .catch(function (err) {
+          // Ako se heic2any-jev worker "zaglavio" i nikad nije odgovorio,
+          // restartuj ga — da sledeća HEIC slika u redu ne nasledi isti
+          // zaglavljeni worker i i sama zauvek čeka.
+          if (window.__heic2any__worker) {
+            try { window.__heic2any__worker.terminate(); } catch (e2) {}
+            window.__heic2any__worker = null;
+          }
+          throw err;
         });
     } else {
       sourcePromise = Promise.resolve(entry.file);
     }
 
     return sourcePromise
-      .then(function (blob) { return resizeBlobToThumb(blob); })
+      .then(function (blob) { return withTimeout(resizeBlobToThumb(blob), 15000, 'umanjivanje slike'); })
       .then(function (dataUrl) { img.src = dataUrl; })
-      .catch(function () {
-        return loadThumbFallback(entry, img);
+      .catch(function (err) {
+        if (window.console && console.warn) {
+          console.warn('Sličica nije uspela za', entry.file && entry.file.name, err && err.message);
+        }
+        return loadThumbFallback(entry, img, div);
       });
   }
 
-  function loadThumbFallback(entry, img) {
+  function loadThumbFallback(entry, img, div) {
     return new Promise(function (resolve) {
       var url = URL.createObjectURL(entry.file);
       entry.objectUrl = url;
       img.onload = function () { resolve(); };
-      img.onerror = function () { resolve(); };
+      img.onerror = function () {
+        if (div) { div.classList.add('thumb-error'); }
+        resolve();
+      };
       img.src = url;
     });
   }
@@ -542,7 +609,7 @@
     div.dataset.id = entry.id;
     var img = document.createElement('img');
     div.appendChild(img);
-    queueThumb(entry, img);
+    queueThumb(entry, img, div);
 
     var num = document.createElement('div');
     num.className = 'num';

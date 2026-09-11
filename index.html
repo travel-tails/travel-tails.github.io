@@ -403,18 +403,49 @@
     updateState();
   }
 
+  // ===== HEIC/HEIF (iPhone kamera format) =====
+  // Pravi uzrok praznih sličica: iPhone po default-u snima u HEIC formatu, a
+  // NIJEDAN browser (uključujući i sam Safari) ne ume pouzdano da DEKODIRE i
+  // prikaže HEIC kroz <img> ili canvas/createImageBitmap — nije stvar memorije,
+  // browser prosto ne razume taj format, pa sličica ostane prazna. Zato HEIC/
+  // HEIF fajlove prvo konvertujemo u JPEG u samom browseru (biblioteka
+  // heic2any, učita se samo kad je stvarno zatreba — da ne opterećujemo sajt
+  // za klijente koji šalju obične JPEG/PNG slike), pa tek od tog JPEG-a pravimo
+  // umanjenu sličicu. UPLOAD ovo ne dotiče — šalje se ORIGINALNI HEIC fajl u
+  // punom kvalitetu, konvertovana verzija je isključivo za prikaz.
+  var HEIC_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
+  var heic2anyPromise = null;
+
+  function isHeicFile(file) {
+    var type = (file.type || '').toLowerCase();
+    if (HEIC_TYPES.indexOf(type) !== -1) return true;
+    return /\.(heic|heif)$/i.test(file.name || '');
+  }
+
+  function ensureHeic2Any() {
+    if (window.heic2any) return Promise.resolve();
+    if (heic2anyPromise) return heic2anyPromise;
+    heic2anyPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+      s.onload = function () { resolve(); };
+      s.onerror = function () { heic2anyPromise = null; reject(new Error('heic2any load failed')); };
+      document.head.appendChild(s);
+    });
+    return heic2anyPromise;
+  }
+
   // ===== Generisanje sličica (thumbnails) za raspoređivanje =====
   // NIJE dovoljno samo staviti <img src="blob:..."> na originalnu fotografiju
-  // (probano, i dalje pola ostane prazno) — browser SVEJEDNO mora da dekodira
-  // i drži u memoriji original u PUNOJ rezoluciji dok god je <img> na strani,
-  // a kod 40 telefonskih fotografija (po 10-20+ MB, ogromne rezolucije) to je
-  // i dalje previše odjednom pa deo dekodiranja tiho ne uspe.
-  //
-  // Zato ovde SLIČICU stvarno umanjimo pre prikaza (createImageBitmap sa
-  // resizeWidth), nacrtamo na mali canvas i to koristimo kao src — memorija
-  // po slici pada sa "cela fotografija" na "par stotina piksela". Dodatno,
-  // obrada ide u redu sa ograničenim brojem paralelnih poslova (umesto svih
-  // 40 odjednom) da ne opteretimo slabije telefone/Safari.
+  // — browser SVEJEDNO mora da dekodira i drži u memoriji original u PUNOJ
+  // rezoluciji dok god je <img> na strani, a kod 40 telefonskih fotografija
+  // (po 10-20+ MB, ogromne rezolucije) to je previše odjednom pa deo
+  // dekodiranja tiho ne uspe. Zato ovde SLIČICU stvarno umanjimo pre prikaza
+  // (createImageBitmap sa resizeWidth), nacrtamo na mali canvas i to
+  // koristimo kao src — memorija po slici pada sa "cela fotografija" na "par
+  // stotina piksela". Dodatno, obrada ide u redu sa ograničenim brojem
+  // paralelnih poslova (umesto svih 40 odjednom) da ne opteretimo slabije
+  // telefone/Safari.
   //
   // Sam UPLOAD ovo uopšte ne dotiče — i dalje se šalje originalni File objekat
   // u punom kvalitetu, ovo je isključivo za prikaz sličica radi raspoređivanja.
@@ -439,9 +470,9 @@
     }
   }
 
-  function loadThumbImage(entry, img) {
+  function resizeBlobToThumb(blob) {
     if (window.createImageBitmap) {
-      return createImageBitmap(entry.file, { resizeWidth: THUMB_TARGET_WIDTH, resizeQuality: 'medium' })
+      return createImageBitmap(blob, { resizeWidth: THUMB_TARGET_WIDTH, resizeQuality: 'medium' })
         .then(function (bitmap) {
           var canvas = document.createElement('canvas');
           canvas.width = bitmap.width;
@@ -449,13 +480,38 @@
           var ctx = canvas.getContext('2d');
           ctx.drawImage(bitmap, 0, 0);
           bitmap.close();
-          img.src = canvas.toDataURL('image/jpeg', 0.82);
-        })
-        .catch(function () {
-          return loadThumbFallback(entry, img);
+          return canvas.toDataURL('image/jpeg', 0.82);
         });
     }
-    return loadThumbFallback(entry, img);
+    // Stariji browseri bez createImageBitmap — nema umanjenja, ali radi.
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function loadThumbImage(entry, img) {
+    var sourcePromise;
+    if (isHeicFile(entry.file)) {
+      sourcePromise = ensureHeic2Any()
+        .then(function () {
+          return heic2any({ blob: entry.file, toType: 'image/jpeg', quality: 0.7 });
+        })
+        .then(function (converted) {
+          return Array.isArray(converted) ? converted[0] : converted;
+        });
+    } else {
+      sourcePromise = Promise.resolve(entry.file);
+    }
+
+    return sourcePromise
+      .then(function (blob) { return resizeBlobToThumb(blob); })
+      .then(function (dataUrl) { img.src = dataUrl; })
+      .catch(function () {
+        return loadThumbFallback(entry, img);
+      });
   }
 
   function loadThumbFallback(entry, img) {

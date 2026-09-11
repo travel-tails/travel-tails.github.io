@@ -227,7 +227,7 @@
     #progressText { font-size: 13px; color: var(--text-500); margin-top: 6px; text-align: center; font-family: 'Geist', sans-serif; }
     .error { color: #c0392b; font-size: 13px; margin-top: 10px; font-family: 'Geist', sans-serif; }
     h2 {
-      margin: 0 0 10px; font-size: 28px; font-family: 'Montserrat', sans-serif;
+      margin: 0 0 10px; font-size: 38px; font-family: 'Montserrat', sans-serif;
       font-weight: 700; color: var(--text-900);
     }
     .muted { color: var(--text-500); font-size: 15px; margin: 0 0 28px; font-family: 'Geist', sans-serif; line-height: 1.5; }
@@ -342,7 +342,7 @@
 
     <div id="stepDone" style="display:none">
       <div class="brand">Travel Tails</div>
-      <h2>Hvala!</h2>
+      <h2 class="thanks-green">Hvala!</h2>
       <p class="muted">Slike su uspešno poslate, poređane tačno onim redosledom koji si izabrao/la.<br>Travel Tails će ti se javiti na Instagramu u najkraćem mogućem roku.<br><br>Uskoro možeš očekivati poruku da se dogovorimo oko izgleda tvojih korica.</p>
       <div class="summary" id="summaryBox"></div>
     </div>
@@ -705,7 +705,7 @@
     callServerWithRetry('confirmDetails', [
       orderState.folderId, orderState.clientName, orderState.instagram, orderState.destination,
       city, address, phone, orderState.total
-    ], 2, 30000).then(function () {
+    ], 2, 8000, 1000).then(function () {
       orderState.city = city;
       orderState.address = address;
       orderState.phone = phone;

@@ -297,7 +297,7 @@
           Prevuci slike ovde ili klikni da izabereš
           <span class="small">možeš dodavati u više navrata, redosled kasnije menjaš prevlačenjem</span>
         </div>
-        <input type="file" id="fileInput" accept="image/*" multiple>
+        <input type="file" id="fileInput" accept="image/*,.heic,.heif" multiple>
         <div id="grid"></div>
         <div class="countHint" id="countHint"></div>
       </div>
@@ -391,10 +391,22 @@
     if (uploading) { e.preventDefault(); e.returnValue = ''; }
   });
 
+  // Neki browseri/OS ne prepoznaju .heic/.heif kao "image/*" MIME tip (npr.
+  // vrate 'application/octet-stream' ili prazan string ako sistem nema HEIC
+  // kodek instaliran) — u tom slučaju bi f.type provera SAMA odbacila fajl pre
+  // nego što uopšte stigne do prikaza. Zato ovde prihvatamo fajl i po
+  // ekstenziji imena, ne samo po MIME tipu.
+  var IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|heic|heif|tiff?)$/i;
+
+  function looksLikeImage(f) {
+    if ((f.type || '').indexOf('image/') === 0) return true;
+    return IMAGE_EXT_RE.test(f.name || '');
+  }
+
   function addFiles(fileList) {
     for (var i = 0; i < fileList.length; i++) {
       var f = fileList[i];
-      if (f.type.indexOf('image/') !== 0) continue;
+      if (!looksLikeImage(f)) continue;
       idCounter++;
       var entry = { file: f, id: 'f' + idCounter };
       files.push(entry);

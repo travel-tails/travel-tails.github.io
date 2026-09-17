@@ -243,9 +243,9 @@
       border: 1px solid var(--border); border-radius: 14px; padding: 20px 20px 4px;
       margin-bottom: 20px; background: var(--input-bg);
     }
-    .album-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .album-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
     .album-title {
-      font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 15px;
+      font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 22px;
       text-transform: uppercase; letter-spacing: .03em; color: var(--text-900);
     }
     .album-remove {
@@ -305,7 +305,7 @@
       <div class="rules">
         <div class="rule-item"><span class="dot"></span><span class="txt">Minimalan broj slika po albumu je 40</span></div>
         <div class="rule-item"><span class="dot"></span><span class="txt">Broj slika po albumu mora biti deljiv sa 4</span></div>
-        <div class="rule-item"><span class="dot"></span><span class="txt">Za više knjiga odjednom, dodaj još albuma dugmetom ispod</span></div>
+        <div class="rule-item"><span class="dot"></span><span class="txt">Za više knjiga odjednom, dodaj još knjiga dugmetom ispod</span></div>
       </div>
 
       <div class="field">
@@ -320,7 +320,7 @@
 
       <div id="albumsWrap"></div>
 
-      <button type="button" class="secondary" id="addAlbumBtn">+ Dodaj još jedan album</button>
+      <button type="button" class="secondary" id="addAlbumBtn">+ Dodaj još jednu knjigu</button>
 
       <button class="primary" id="submitBtn" disabled>Pošalji slike</button>
       <div class="error" id="errorMsg"></div>
@@ -601,7 +601,7 @@
     var removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'album-remove';
-    removeBtn.textContent = 'Ukloni album';
+    removeBtn.textContent = 'Ukloni knjigu';
     header.appendChild(removeBtn);
     block.appendChild(header);
 
@@ -706,7 +706,7 @@
 
   function renumberAlbums() {
     albums.forEach(function (a, i) {
-      a.titleEl.textContent = 'Album ' + (i + 1);
+      a.titleEl.textContent = 'Knjiga ' + (i + 1);
       a.removeBtn.style.display = albums.length > 1 ? 'inline-block' : 'none';
     });
   }
@@ -957,7 +957,7 @@
       return;
     }
     if (albums.length === 0) {
-      errorMsg.textContent = 'Potreban je bar jedan album.';
+      errorMsg.textContent = 'Potreban je bar jedna knjiga.';
       return;
     }
 
@@ -965,9 +965,9 @@
       var a = albums[i];
       var destination = a.destinationInput.value.trim();
       a.destination = destination;
-      var label = 'Album ' + (i + 1) + (destination ? ' (' + destination + ')' : '');
+      var label = 'Knjiga ' + (i + 1) + (destination ? ' (' + destination + ')' : '');
       if (!destination) {
-        errorMsg.textContent = 'Album ' + (i + 1) + ': unesite destinaciju / temu knjige.';
+        errorMsg.textContent = 'Knjiga ' + (i + 1) + ': unesite destinaciju / temu knjige.';
         return;
       }
       if (a.files.length < 40) {
@@ -1071,7 +1071,7 @@
       html += '<div class="summary-row"><span class="k">' + escapeHtml(r[0]) + '</span><span class="v">' + escapeHtml(r[1]) + '</span></div>';
     });
     orderState.albums.forEach(function (a, i) {
-      html += '<div class="summary-row"><span class="k">Album ' + (i + 1) + ' — ' + escapeHtml(a.destination) + '</span><span class="v">' + a.totalCount + ' slika</span></div>';
+      html += '<div class="summary-row"><span class="k">Knjiga ' + (i + 1) + ' — ' + escapeHtml(a.destination) + '</span><span class="v">' + a.totalCount + ' slika</span></div>';
     });
     document.getElementById('summaryBox').innerHTML = html;
   }

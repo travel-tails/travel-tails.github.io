@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta property="og:title" content="Travel Tails — Pošalji slike za svoj foto-album">
+  <meta property="og:title" content="Travel Tails - Pošalji slike za svoju foto-knjigu">
   <meta property="og:description" content="Izaberi i poređaj slike svojim redosledom za personalizovani Travel Tails foto-album.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://travel-tails.github.io/preview.jpg">
@@ -14,7 +14,7 @@
   <meta property="og:image:height" content="1000">
   <meta property="og:locale" content="sr_RS">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Travel Tails — Pošalji slike za svoj foto-album">
+  <meta name="twitter:title" content="Travel Tails - Pošalji slike za svoju foto-knjigu">
   <meta name="twitter:image" content="https://travel-tails.github.io/preview.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -151,8 +151,8 @@
     .dropzone:hover, .dropzone.dragover { background: var(--info-bg); }
     .dropzone svg { display: block; margin: 0 auto 8px; opacity: .85; }
     .dropzone .small { font-size: 12px; color: var(--text-400); margin-top: 4px; display: block; }
-    #fileInput { display: none; }
-    #grid {
+    .fileInput { display: none; }
+    .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
       gap: 10px;
@@ -233,6 +233,26 @@
     }
     button.primary:hover:not(:disabled) { background: var(--primary-dark); }
     button.primary:disabled { background: #cfe9f5; color: #fff; cursor: not-allowed; }
+    button.secondary {
+      width: 100%; padding: 14px; margin: 4px 0 20px; border: 1.5px dashed var(--primary);
+      border-radius: 9px; background: transparent; color: var(--primary-dark);
+      font-size: 15px; font-family: 'Geist', sans-serif; font-weight: 500; cursor: pointer;
+    }
+    button.secondary:hover { background: var(--info-bg); }
+    .album-block {
+      border: 1px solid var(--border); border-radius: 14px; padding: 20px 20px 4px;
+      margin-bottom: 20px; background: var(--input-bg);
+    }
+    .album-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .album-title {
+      font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 15px;
+      text-transform: uppercase; letter-spacing: .03em; color: var(--text-900);
+    }
+    .album-remove {
+      background: none; border: none; padding: 0; font-family: 'Geist', sans-serif;
+      font-size: 13px; color: var(--text-500); text-decoration: underline; cursor: pointer;
+    }
+    .album-remove:hover { color: #c0392b; }
     #progressWrap { display: none; margin-top: 18px; }
     #progressBar { height: 10px; background: #eee; border-radius: 6px; overflow: hidden; }
     #progressFill { height: 100%; width: 0%; background: var(--primary); transition: width .2s; }
@@ -283,8 +303,9 @@
       </div>
       <div class="brand">Travel Tails</div>
       <div class="rules">
-        <div class="rule-item"><span class="dot"></span><span class="txt">Minimalan broj slika je 40</span></div>
-        <div class="rule-item"><span class="dot"></span><span class="txt">Potrebno je da ukupan broj slika bude deljiv sa 4</span></div>
+        <div class="rule-item"><span class="dot"></span><span class="txt">Minimalan broj slika po albumu je 40</span></div>
+        <div class="rule-item"><span class="dot"></span><span class="txt">Broj slika po albumu mora biti deljiv sa 4</span></div>
+        <div class="rule-item"><span class="dot"></span><span class="txt">Za više knjiga odjednom, dodaj još albuma dugmetom ispod</span></div>
       </div>
 
       <div class="field">
@@ -297,22 +318,9 @@
         <input type="text" id="instagram" placeholder="Unesite Vaš Instagram user">
       </div>
 
-      <div class="field">
-        <label for="destination">Unesite destinaciju / temu knjige</label>
-        <input type="text" id="destination" placeholder="Unesite destinaciju / temu knjige">
-      </div>
+      <div id="albumsWrap"></div>
 
-      <div class="field">
-        <label>Slike</label>
-        <div class="dropzone" id="dropzone">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#65c8f6" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-          Prevuci slike ovde ili klikni da izabereš
-          <span class="small">možeš dodavati u više navrata, redosled kasnije menjaš prevlačenjem</span>
-        </div>
-        <input type="file" id="fileInput" accept="image/*,.heic,.heif" multiple>
-        <div id="grid"></div>
-        <div class="countHint" id="countHint"></div>
-      </div>
+      <button type="button" class="secondary" id="addAlbumBtn">+ Dodaj još jedan album</button>
 
       <button class="primary" id="submitBtn" disabled>Pošalji slike</button>
       <div class="error" id="errorMsg"></div>
@@ -369,34 +377,22 @@
 <script>
   var API_URL = 'https://script.google.com/macros/s/AKfycbyeKz0KUI9LSTGANx2ULacVZhpixAWl0i8WJuadPaeKuDgdgS5oWZAO85ql-Zza7g_QMA/exec';
 
-  var files = [];
-  var idCounter = 0;
+  var albums = [];
+  var albumIdCounter = 0;
+  var photoIdCounter = 0;
   var uploading = false;
-  var orderState = { folderId: null, clientName: '', instagram: '', destination: '', city: '', address: '', phone: '', total: 0 };
+  var orderState = { orderFolderId: null, clientName: '', instagram: '', albums: [], city: '', address: '', phone: '' };
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  var grid = document.getElementById('grid');
-  var dropzone = document.getElementById('dropzone');
-  var fileInput = document.getElementById('fileInput');
+  var albumsWrap = document.getElementById('albumsWrap');
+  var addAlbumBtn = document.getElementById('addAlbumBtn');
   var submitBtn = document.getElementById('submitBtn');
-  var countHint = document.getElementById('countHint');
   var errorMsg = document.getElementById('errorMsg');
 
-  dropzone.addEventListener('click', function () { fileInput.click(); });
-  dropzone.addEventListener('dragover', function (e) { e.preventDefault(); dropzone.classList.add('dragover'); });
-  dropzone.addEventListener('dragleave', function () { dropzone.classList.remove('dragover'); });
-  dropzone.addEventListener('drop', function (e) {
-    e.preventDefault();
-    dropzone.classList.remove('dragover');
-    addFiles(e.dataTransfer.files);
-  });
-  fileInput.addEventListener('change', function () {
-    addFiles(fileInput.files);
-    fileInput.value = '';
-  });
+  addAlbumBtn.addEventListener('click', function () { addAlbumBlock(); });
 
   window.addEventListener('beforeunload', function (e) {
     if (uploading) { e.preventDefault(); e.returnValue = ''; }
@@ -412,18 +408,6 @@
   function looksLikeImage(f) {
     if ((f.type || '').indexOf('image/') === 0) return true;
     return IMAGE_EXT_RE.test(f.name || '');
-  }
-
-  function addFiles(fileList) {
-    for (var i = 0; i < fileList.length; i++) {
-      var f = fileList[i];
-      if (!looksLikeImage(f)) continue;
-      idCounter++;
-      var entry = { file: f, id: 'f' + idCounter };
-      files.push(entry);
-      renderThumb(entry);
-    }
-    updateState();
   }
 
   // ===== HEIC/HEIF (iPhone kamera format) =====
@@ -508,7 +492,7 @@
   // (createImageBitmap sa resizeWidth), nacrtamo na mali canvas i to
   // koristimo kao src — memorija po slici pada sa "cela fotografija" na "par
   // stotina piksela". Dodatno, obrada ide u redu sa ograničenim brojem
-  // paralelnih poslova (umesto svih 40 odjednom) da ne opteretimo slabije
+  // paralelnih poslova (umesto svih odjednom) da ne opteretimo slabije
   // telefone/Safari.
   //
   // Sam UPLOAD ovo uopšte ne dotiče — i dalje se šalje originalni File objekat
@@ -595,7 +579,152 @@
     });
   }
 
-  function renderThumb(entry) {
+  // ===== Albumi (knjige) — jedna porudžbina može imati više albuma odjednom =====
+  // Ime i prezime / Instagram se unose jednom za celu porudžbinu. Svaki album
+  // ima svoju destinaciju/temu i svoje slike — klijent može dodati koliko god
+  // albuma želi pre slanja, umesto da prolazi kroz cео formu iznova za svaku
+  // knjigu.
+
+  function addAlbumBlock() {
+    albumIdCounter++;
+    var albumId = 'a' + albumIdCounter;
+
+    var block = document.createElement('div');
+    block.className = 'album-block';
+    block.dataset.albumId = albumId;
+
+    var header = document.createElement('div');
+    header.className = 'album-header';
+    var title = document.createElement('span');
+    title.className = 'album-title';
+    header.appendChild(title);
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'album-remove';
+    removeBtn.textContent = 'Ukloni album';
+    header.appendChild(removeBtn);
+    block.appendChild(header);
+
+    var destField = document.createElement('div');
+    destField.className = 'field';
+    var destLabel = document.createElement('label');
+    destLabel.textContent = 'Destinacija / tema knjige';
+    destField.appendChild(destLabel);
+    var destInput = document.createElement('input');
+    destInput.type = 'text';
+    destInput.placeholder = 'Unesite destinaciju / temu knjige';
+    destField.appendChild(destInput);
+    block.appendChild(destField);
+
+    var photosField = document.createElement('div');
+    photosField.className = 'field';
+    var photosLabel = document.createElement('label');
+    photosLabel.textContent = 'Slike';
+    photosField.appendChild(photosLabel);
+
+    var dropzone = document.createElement('div');
+    dropzone.className = 'dropzone';
+    dropzone.innerHTML =
+      '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#65c8f6" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>' +
+      'Prevuci slike ovde ili klikni da izabereš' +
+      '<span class="small">možeš dodavati u više navrata, redosled kasnije menjaš prevlačenjem</span>';
+    photosField.appendChild(dropzone);
+
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.className = 'fileInput';
+    fileInput.accept = 'image/*,.heic,.heif';
+    fileInput.multiple = true;
+    photosField.appendChild(fileInput);
+
+    var grid = document.createElement('div');
+    grid.className = 'grid';
+    photosField.appendChild(grid);
+
+    var countHint = document.createElement('div');
+    countHint.className = 'countHint';
+    photosField.appendChild(countHint);
+
+    block.appendChild(photosField);
+    albumsWrap.appendChild(block);
+
+    var album = {
+      id: albumId,
+      destination: '',
+      files: [],
+      el: block,
+      titleEl: title,
+      removeBtn: removeBtn,
+      destinationInput: destInput,
+      dropzoneEl: dropzone,
+      fileInputEl: fileInput,
+      gridEl: grid,
+      countHintEl: countHint
+    };
+    albums.push(album);
+
+    dropzone.addEventListener('click', function () { fileInput.click(); });
+    dropzone.addEventListener('dragover', function (e) { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', function () { dropzone.classList.remove('dragover'); });
+    dropzone.addEventListener('drop', function (e) {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      addFilesToAlbum(album, e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', function () {
+      addFilesToAlbum(album, fileInput.files);
+      fileInput.value = '';
+    });
+    removeBtn.addEventListener('click', function () {
+      removeAlbumBlock(album);
+    });
+
+    Sortable.create(grid, {
+      animation: 150,
+      onEnd: function () {
+        var order = Array.prototype.map.call(grid.children, function (el) { return el.dataset.id; });
+        album.files.sort(function (a2, b2) { return order.indexOf(a2.id) - order.indexOf(b2.id); });
+        updateAlbumCountHint(album);
+      }
+    });
+
+    renumberAlbums();
+    updateSubmitState();
+    return album;
+  }
+
+  function removeAlbumBlock(album) {
+    if (albums.length <= 1) return; // uvek mora ostati bar jedan album
+    album.files.forEach(function (entry) {
+      if (entry.objectUrl) { URL.revokeObjectURL(entry.objectUrl); }
+    });
+    albums = albums.filter(function (a) { return a.id !== album.id; });
+    album.el.remove();
+    renumberAlbums();
+    updateSubmitState();
+  }
+
+  function renumberAlbums() {
+    albums.forEach(function (a, i) {
+      a.titleEl.textContent = 'Album ' + (i + 1);
+      a.removeBtn.style.display = albums.length > 1 ? 'inline-block' : 'none';
+    });
+  }
+
+  function addFilesToAlbum(album, fileList) {
+    for (var i = 0; i < fileList.length; i++) {
+      var f = fileList[i];
+      if (!looksLikeImage(f)) continue;
+      photoIdCounter++;
+      var entry = { file: f, id: 'f' + photoIdCounter };
+      album.files.push(entry);
+      renderThumbForAlbum(album, entry);
+    }
+    updateAlbumCountHint(album);
+    updateSubmitState();
+  }
+
+  function renderThumbForAlbum(album, entry) {
     var div = document.createElement('div');
     div.className = 'thumb';
     div.dataset.id = entry.id;
@@ -612,66 +741,51 @@
     rm.innerHTML = '&times;';
     rm.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      files = files.filter(function (x) { return x.id !== entry.id; });
+      album.files = album.files.filter(function (x) { return x.id !== entry.id; });
       if (entry.objectUrl) { URL.revokeObjectURL(entry.objectUrl); }
       div.remove();
-      updateState();
+      updateAlbumCountHint(album);
+      updateSubmitState();
     });
     div.appendChild(rm);
 
-    grid.appendChild(div);
+    album.gridEl.appendChild(div);
   }
 
-  Sortable.create(grid, {
-    animation: 150,
-    onEnd: function () {
-      var order = Array.prototype.map.call(grid.children, function (el) { return el.dataset.id; });
-      files.sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
-      updateState();
-    }
-  });
-
-  function updateState() {
-    var thumbs = grid.children;
+  function updateAlbumCountHint(album) {
+    var thumbs = album.gridEl.children;
     for (var i = 0; i < thumbs.length; i++) {
       var id = thumbs[i].dataset.id;
-      var pos = files.findIndex(function (x) { return x.id === id; });
+      var pos = album.files.findIndex(function (x) { return x.id === id; });
       thumbs[i].querySelector('.num').textContent = (pos + 1);
     }
 
-    var n = files.length;
+    var n = album.files.length;
+    var countHint = album.countHintEl;
     countHint.className = 'countHint';
     if (n === 0) {
       countHint.textContent = '';
-      submitBtn.disabled = true;
     } else if (n < 40) {
       countHint.textContent = n + ' slika — potreban je minimum 40 (nedostaje još ' + (40 - n) + ').';
       countHint.classList.add('bad');
-      submitBtn.disabled = true;
     } else if (n % 4 !== 0) {
       var toAdd = 4 - (n % 4);
       var toRemove = n % 4;
       countHint.textContent = n + ' slika — broj mora biti deljiv sa 4. Dodaj još ' + toAdd + ' ili ukloni ' + toRemove + '.';
       countHint.classList.add('bad');
-      submitBtn.disabled = true;
     } else {
       countHint.textContent = n + ' slika ✓';
       countHint.classList.add('ok');
-      submitBtn.disabled = false;
     }
   }
 
-  function fileToBase64(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () {
-        var result = reader.result;
-        var base64 = result.substring(result.indexOf(',') + 1);
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  function albumIsValid(album) {
+    var n = album.files.length;
+    return n >= 40 && n % 4 === 0;
+  }
+
+  function updateSubmitState() {
+    submitBtn.disabled = !(albums.length > 0 && albums.every(albumIsValid));
   }
 
   function callServer(fnName, args, timeoutMs) {
@@ -785,9 +899,12 @@
     });
   }
 
-  function uploadAllDirect(folderId, total) {
+  // filesList = niz { file, id } stavki za JEDAN album; onFileDone se zove
+  // posle svake pojedinačno uspešno poslate slike (za zajednički progress bar
+  // preko svih albuma u porudžbini).
+  function uploadAllDirect(folderId, filesList, onFileDone) {
     return new Promise(function (resolve, reject) {
-      var ordered = buildOrderedFilenames(files);
+      var ordered = buildOrderedFilenames(filesList);
       var meta = ordered.map(function (o) { return { filename: o.filename, mimeType: o.mimeType }; });
 
       callServerWithRetry('getUploadUrls', [folderId, meta, window.location.origin], 2, 60000).then(function (urls) {
@@ -796,7 +913,6 @@
         });
 
         var CONCURRENCY = 5;
-        var doneCount = 0;
         var nextIdx = 0;
         var inFlight = 0;
         var failed = false;
@@ -813,8 +929,7 @@
           putFileDirectWithRetry(target.sessionUrl, target.file, target.mimeType)
             .then(function () {
               inFlight--;
-              doneCount++;
-              updateProgress(doneCount, total);
+              if (onFileDone) onFileDone();
               launchNext();
             })
             .catch(function (err) {
@@ -831,7 +946,6 @@
   submitBtn.addEventListener('click', function () {
     var clientName = document.getElementById('clientName').value.trim();
     var instagram = document.getElementById('instagram').value.trim();
-    var destination = document.getElementById('destination').value.trim();
     errorMsg.textContent = '';
 
     if (!clientName) {
@@ -842,32 +956,60 @@
       errorMsg.textContent = 'Molimo unesite Instagram user.';
       return;
     }
-    if (!destination) {
-      errorMsg.textContent = 'Molimo unesite destinaciju / temu knjige.';
+    if (albums.length === 0) {
+      errorMsg.textContent = 'Potreban je bar jedan album.';
       return;
     }
-    if (files.length < 40) {
-      errorMsg.textContent = 'Potreban je minimum 40 slika.';
-      return;
-    }
-    if (files.length % 4 !== 0) {
-      errorMsg.textContent = 'Broj slika mora biti deljiv sa 4.';
-      return;
+
+    for (var i = 0; i < albums.length; i++) {
+      var a = albums[i];
+      var destination = a.destinationInput.value.trim();
+      a.destination = destination;
+      var label = 'Album ' + (i + 1) + (destination ? ' (' + destination + ')' : '');
+      if (!destination) {
+        errorMsg.textContent = 'Album ' + (i + 1) + ': unesite destinaciju / temu knjige.';
+        return;
+      }
+      if (a.files.length < 40) {
+        errorMsg.textContent = label + ': potreban je minimum 40 slika.';
+        return;
+      }
+      if (a.files.length % 4 !== 0) {
+        errorMsg.textContent = label + ': broj slika mora biti deljiv sa 4.';
+        return;
+      }
     }
 
     submitBtn.disabled = true;
     uploading = true;
     document.getElementById('progressWrap').style.display = 'block';
-    var total = files.length;
-    updateProgress(0, total);
 
-    callServerWithRetry('initOrder', [clientName, instagram, destination, total], 2, 30000).then(function (orderInfo) {
-      orderState.folderId = orderInfo.folderId;
+    var totalAll = albums.reduce(function (sum, a) { return sum + a.files.length; }, 0);
+    var doneAll = 0;
+    updateProgress(0, totalAll);
+
+    var albumsMeta = albums.map(function (a) { return { destination: a.destination, totalCount: a.files.length }; });
+
+    callServerWithRetry('initOrder', [clientName, instagram, albumsMeta], 2, 30000).then(function (orderInfo) {
+      orderState.orderFolderId = orderInfo.orderFolderId;
       orderState.clientName = clientName;
       orderState.instagram = instagram;
-      orderState.destination = destination;
-      orderState.total = total;
-      return uploadAllDirect(orderInfo.folderId, total);
+      orderState.albums = orderInfo.albums.map(function (a) {
+        return { destination: a.destination, totalCount: a.totalCount, folderId: a.folderId };
+      });
+
+      // Šalje albume jedan za drugim (ne paralelno), redom kojim su dodati —
+      // predvidljivije opterećenje mreže nego da svi albumi šalju odjednom.
+      var chain = Promise.resolve();
+      albums.forEach(function (album, i) {
+        chain = chain.then(function () {
+          return uploadAllDirect(orderState.albums[i].folderId, album.files, function () {
+            doneAll++;
+            updateProgress(doneAll, totalAll);
+          });
+        });
+      });
+      return chain;
     }).then(function () {
       uploading = false;
       document.getElementById('stepPhotos').style.display = 'none';
@@ -894,8 +1036,8 @@
     confirmBtn.disabled = true;
 
     callServerWithRetry('confirmDetails', [
-      orderState.folderId, orderState.clientName, orderState.instagram, orderState.destination,
-      city, address, phone, orderState.total
+      orderState.orderFolderId, orderState.clientName, orderState.instagram, orderState.albums,
+      city, address, phone
     ], 2, 8000, 1000).then(function () {
       orderState.city = city;
       orderState.address = address;
@@ -913,22 +1055,23 @@
     document.getElementById('stepDetails').style.display = 'none';
     document.getElementById('stepPhotos').style.display = 'block';
     errorMsg.textContent = '';
-    updateState();
+    updateSubmitState();
   });
 
   function buildSummary() {
     var rows = [
       ['Ime i prezime', orderState.clientName],
       ['Instagram user', orderState.instagram],
-      ['Destinacija / tema knjige', orderState.destination],
       ['Grad', orderState.city],
       ['Adresa', orderState.address],
-      ['Kontakt telefon', orderState.phone],
-      ['Broj slika', orderState.total]
+      ['Kontakt telefon', orderState.phone]
     ];
     var html = '';
     rows.forEach(function (r) {
       html += '<div class="summary-row"><span class="k">' + escapeHtml(r[0]) + '</span><span class="v">' + escapeHtml(r[1]) + '</span></div>';
+    });
+    orderState.albums.forEach(function (a, i) {
+      html += '<div class="summary-row"><span class="k">Album ' + (i + 1) + ' — ' + escapeHtml(a.destination) + '</span><span class="v">' + a.totalCount + ' slika</span></div>';
     });
     document.getElementById('summaryBox').innerHTML = html;
   }
@@ -938,6 +1081,9 @@
     document.getElementById('progressFill').style.width = pct + '%';
     document.getElementById('progressText').textContent = 'Slanje... ' + done + ' / ' + total;
   }
+
+  // Prvi album je uvek prisutan na startu.
+  addAlbumBlock();
 </script>
 </body>
 </html>

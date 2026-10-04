@@ -1154,7 +1154,7 @@
     var pct = uploadState.totalBytes > 0 ? Math.min(100, loaded / uploadState.totalBytes * 100) : 0;
     document.getElementById('progressFill').style.width = pct.toFixed(1) + '%';
     document.getElementById('progressText').textContent =
-      (loaded > 0 ? 'Slanje... ' : 'Priprema slanja... ') + uploadState.done + ' / ' + uploadState.total + ' fotografija (' + Math.floor(pct) + '%)';
+      (loaded > 0 ? 'Slanje... ' : 'Priprema slanja... ') + uploadState.done + ' / ' + uploadState.total + ' fotografija';
   }
 
   // Prvi album je uvek prisutan na startu.

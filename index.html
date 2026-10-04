@@ -6,15 +6,15 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta property="og:title" content="Travel Tails - Pošalji slike za svoju foto-knjigu">
-  <meta property="og:description" content="Izaberi i poređaj slike svojim redosledom za personalizovani Travel Tails foto-album.">
+  <meta property="og:title" content="Travel Tails - Pošalji fotografije za svoju foto-knjigu">
+  <meta property="og:description" content="Izaberi i poređaj fotografije svojim redosledom za personalizovani Travel Tails foto-album.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://travel-tails.github.io/preview.jpg">
   <meta property="og:image:width" content="1000">
   <meta property="og:image:height" content="1000">
   <meta property="og:locale" content="sr_RS">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Travel Tails - Pošalji slike za svoju foto-knjigu">
+  <meta name="twitter:title" content="Travel Tails - Pošalji fotografije za svoju foto-knjigu">
   <meta name="twitter:image" content="https://travel-tails.github.io/preview.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -120,6 +120,37 @@
       font-weight: 500;
       font-size: 16px;
       color: var(--text-500);
+    }
+    .layout-guide { margin: 44px 0 44px; }
+    .layout-guide h3 {
+      margin: 0 0 16px;
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 700;
+      font-size: clamp(20px, 2.4vw, 26px);
+      text-transform: uppercase;
+      color: var(--text-900);
+    }
+    .layout-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 24px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin-bottom: 14px;
+    }
+    .layout-row p {
+      margin: 0;
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500; font-size: 18px; line-height: 1.45;
+      color: var(--text-500);
+    }
+    .layout-row p b { color: var(--text-900); font-weight: 700; }
+    .layout-row .book { width: 130px; flex: none; filter: drop-shadow(0 3px 8px rgba(0,0,0,.14)); }
+    @media (max-width: 480px) {
+      .layout-guide { margin: 36px 0; }
+      .layout-row { flex-direction: column-reverse; align-items: center; text-align: center; gap: 14px; padding: 20px 16px; }
+      .layout-row .book { width: 160px; max-width: 60%; }
+      .layout-row p { font-size: 16px; }
     }
     .field { margin-bottom: 16px; }
     .field label {
@@ -303,9 +334,23 @@
       </div>
       <div class="brand">Travel Tails</div>
       <div class="rules">
-        <div class="rule-item"><span class="dot"></span><span class="txt">Minimalan broj slika po albumu je 40</span></div>
-        <div class="rule-item"><span class="dot"></span><span class="txt">Broj slika po albumu mora biti deljiv sa 4</span></div>
-        <div class="rule-item"><span class="dot"></span><span class="txt">Za više knjiga odjednom, dodaj još knjiga dugmetom ispod</span></div>
+        <div class="rule-item"><span class="dot"></span><span class="txt">Minimalan broj fotografija po albumu je 40</span></div>
+      </div>
+
+      <div class="layout-guide">
+        <h3>Raspored fotografija</h3>
+        <div class="layout-row">
+          <p><b>Prva fotografija</b> je na <b>desnoj</b> strani</p>
+          <svg class="book" viewBox="0 0 100 64" aria-hidden="true"><defs><linearGradient id="ph" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#65c8f6"/><stop offset="1" stop-color="#2f9fd6"/></linearGradient></defs><rect x="1.5" y="1.5" width="97" height="61" rx="6" fill="#fff" stroke="#3ab6b0" stroke-width="3"/><rect x="5" y="6" width="44" height="52" rx="3" fill="#fff"/><rect x="51" y="6" width="44" height="52" rx="3" fill="url(#ph)"/><text x="73" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#fff" font-family="Montserrat,sans-serif">1</text><line x1="50" y1="6" x2="50" y2="58" stroke="#d4d4d8" stroke-width="1"/></svg>
+        </div>
+        <div class="layout-row">
+          <p>Dalje idu u <b>parovima</b>:<br>2 i 3, 4 i 5, 6 i 7…</p>
+          <svg class="book" viewBox="0 0 100 64" aria-hidden="true"><defs><linearGradient id="ph" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#65c8f6"/><stop offset="1" stop-color="#2f9fd6"/></linearGradient></defs><rect x="1.5" y="1.5" width="97" height="61" rx="6" fill="#fff" stroke="#3ab6b0" stroke-width="3"/><rect x="5" y="6" width="44" height="52" rx="3" fill="url(#ph)"/><text x="27" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#fff" font-family="Montserrat,sans-serif">2</text><rect x="51" y="6" width="44" height="52" rx="3" fill="url(#ph)"/><text x="73" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#fff" font-family="Montserrat,sans-serif">3</text><line x1="50" y1="6" x2="50" y2="58" stroke="#d4d4d8" stroke-width="1"/></svg>
+        </div>
+        <div class="layout-row">
+          <p><b>Poslednja fotografija</b> je na <b>levoj</b> strani</p>
+          <svg class="book" viewBox="0 0 100 64" aria-hidden="true"><defs><linearGradient id="ph" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#65c8f6"/><stop offset="1" stop-color="#2f9fd6"/></linearGradient></defs><rect x="1.5" y="1.5" width="97" height="61" rx="6" fill="#fff" stroke="#3ab6b0" stroke-width="3"/><rect x="5" y="6" width="44" height="52" rx="3" fill="url(#ph)"/><text x="27" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#fff" font-family="Montserrat,sans-serif">N</text><rect x="51" y="6" width="44" height="52" rx="3" fill="#fff"/><line x1="50" y1="6" x2="50" y2="58" stroke="#d4d4d8" stroke-width="1"/></svg>
+        </div>
       </div>
 
       <div class="field">
@@ -322,7 +367,7 @@
 
       <button type="button" class="secondary" id="addAlbumBtn">+ Dodaj još jednu knjigu</button>
 
-      <button class="primary" id="submitBtn" disabled>Pošalji slike</button>
+      <button class="primary" id="submitBtn" disabled>Pošalji fotografije</button>
       <div class="error" id="errorMsg"></div>
 
       <div id="progressWrap">
@@ -362,7 +407,7 @@
 
     <div id="stepDone" style="display:none">
       <h2 class="thanks-green thanks-green-lg">Hvala!</h2>
-      <p class="muted">Slike su uspešno poslate, poređane tačno onim redosledom koji si izabrao/la.<br>Travel Tails će ti se javiti na Instagramu u najkraćem mogućem roku.<br><br>Uskoro možeš očekivati poruku da se dogovorimo oko izgleda tvojih korica.</p>
+      <p class="muted">Fotografije su uspešno poslate, poređane tačno onim redosledom koji si izabrao/la.<br>Travel Tails će ti se javiti na Instagramu u najkraćem mogućem roku.<br><br>Uskoro možeš očekivati poruku da se dogovorimo oko izgleda tvojih korica.</p>
       <div class="summary" id="summaryBox"></div>
     </div>
 
@@ -465,8 +510,8 @@
 
   // Generička zaštita od "zaglavljivanja": ako dekodiranje HEIC-a iz nekog
   // razloga nikad ne odgovori, Promise se NIKAD ne završi — ni uspešno ni
-  // greškom — pa bi cela obrada zaglavila (i sve sledeće slike u redu
-  // čekale zauvek). withTimeout garantuje da se svaka slika "preda" posle
+  // greškom — pa bi cela obrada zaglavila (i sve sledeće fotografije u redu
+  // čekale zauvek). withTimeout garantuje da se svaka fotografija "preda" posle
   // nekog vremena i pređe na rezervni prikaz.
   function withTimeout(promise, ms, label) {
     return new Promise(function (resolve, reject) {
@@ -556,7 +601,7 @@
     }
 
     return sourcePromise
-      .then(function (blob) { return withTimeout(resizeBlobToThumb(blob), 15000, 'umanjivanje slike'); })
+      .then(function (blob) { return withTimeout(resizeBlobToThumb(blob), 15000, 'umanjivanje fotografije'); })
       .then(function (dataUrl) { img.src = dataUrl; })
       .catch(function (err) {
         if (window.console && console.warn) {
@@ -581,7 +626,7 @@
 
   // ===== Albumi (knjige) — jedna porudžbina može imati više albuma odjednom =====
   // Ime i prezime / Instagram se unose jednom za celu porudžbinu. Svaki album
-  // ima svoju destinaciju/temu i svoje slike — klijent može dodati koliko god
+  // ima svoju destinaciju/temu i svoje fotografije — klijent može dodati koliko god
   // albuma želi pre slanja, umesto da prolazi kroz cео formu iznova za svaku
   // knjigu.
 
@@ -619,14 +664,14 @@
     var photosField = document.createElement('div');
     photosField.className = 'field';
     var photosLabel = document.createElement('label');
-    photosLabel.textContent = 'Slike';
+    photosLabel.textContent = 'Fotografije';
     photosField.appendChild(photosLabel);
 
     var dropzone = document.createElement('div');
     dropzone.className = 'dropzone';
     dropzone.innerHTML =
       '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#65c8f6" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>' +
-      'Prevuci slike ovde ili klikni da izabereš' +
+      'Prevuci fotografije ovde ili klikni da izabereš' +
       '<span class="small">možeš dodavati u više navrata, redosled kasnije menjaš prevlačenjem</span>';
     photosField.appendChild(dropzone);
 
@@ -766,15 +811,15 @@
     if (n === 0) {
       countHint.textContent = '';
     } else if (n < 40) {
-      countHint.textContent = n + ' slika — potreban je minimum 40 (nedostaje još ' + (40 - n) + ').';
+      countHint.textContent = n + ' fotografija — potreban je minimum 40 (nedostaje još ' + (40 - n) + ').';
       countHint.classList.add('bad');
     } else if (n % 4 !== 0) {
       var toAdd = 4 - (n % 4);
       var toRemove = n % 4;
-      countHint.textContent = n + ' slika — broj mora biti deljiv sa 4. Dodaj još ' + toAdd + ' ili ukloni ' + toRemove + '.';
+      countHint.textContent = n + ' fotografija — broj mora biti deljiv sa 4. Dodaj još ' + toAdd + ' ili ukloni ' + toRemove + '.';
       countHint.classList.add('bad');
     } else {
-      countHint.textContent = n + ' slika ✓';
+      countHint.textContent = n + ' fotografija ✓';
       countHint.classList.add('ok');
     }
   }
@@ -842,9 +887,9 @@
   }
 
   // ===== Direktan upload na Google Drive =====
-  // Umesto da slike putuju kroz Apps Script (sporo, ograničeno vreme izvršavanja),
+  // Umesto da fotografije putuju kroz Apps Script (sporo, ograničeno vreme izvršavanja),
   // server samo izda kratkotrajne "upload sesije" (getUploadUrls, brz poziv bez
-  // ijedne slike u telu), a browser zatim šalje sirove bajtove DIREKTNO ka Google-u.
+  // ijedne fotografije u telu), a browser zatim šalje sirove bajtove DIREKTNO ka Google-u.
   // Brže je (nema base64 "balasta"), pouzdanije (Apps Script ne žvaće velike
   // podatke) i progres je tačan po svakoj pojedinačnoj slici.
 
@@ -878,11 +923,11 @@
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
-          reject(new Error('Slanje slike nije uspelo (kod ' + xhr.status + ').'));
+          reject(new Error('Slanje fotografije nije uspelo (kod ' + xhr.status + ').'));
         }
       };
-      xhr.onerror = function () { reject(new Error('Mrežna greška pri slanju slike.')); };
-      xhr.ontimeout = function () { reject(new Error('Isteklo je vreme za slanje slike.')); };
+      xhr.onerror = function () { reject(new Error('Mrežna greška pri slanju fotografije.')); };
+      xhr.ontimeout = function () { reject(new Error('Isteklo je vreme za slanje fotografije.')); };
       xhr.send(file);
     });
   }
@@ -900,7 +945,7 @@
   }
 
   // filesList = niz { file, id } stavki za JEDAN album; onFileDone se zove
-  // posle svake pojedinačno uspešno poslate slike (za zajednički progress bar
+  // posle svake pojedinačno uspešno poslate fotografije (za zajednički progress bar
   // preko svih albuma u porudžbini).
   function uploadAllDirect(folderId, filesList, onFileDone) {
     return new Promise(function (resolve, reject) {
@@ -911,8 +956,11 @@
         var targets = ordered.map(function (o, i) {
           return { file: o.file, mimeType: o.mimeType, sessionUrl: urls[i] };
         });
+        // Najveći fajlovi prvi: na kraju ne ostaje jedan veliki fajl koji sam
+        // usporava završetak. Imena fajlova (redosled) su već vezana za sessionUrl.
+        targets.sort(function (a, b) { return b.file.size - a.file.size; });
 
-        var CONCURRENCY = 5;
+        var CONCURRENCY = 8;
         var nextIdx = 0;
         var inFlight = 0;
         var failed = false;
@@ -971,11 +1019,11 @@
         return;
       }
       if (a.files.length < 40) {
-        errorMsg.textContent = label + ': potreban je minimum 40 slika.';
+        errorMsg.textContent = label + ': potreban je minimum 40 fotografija.';
         return;
       }
       if (a.files.length % 4 !== 0) {
-        errorMsg.textContent = label + ': broj slika mora biti deljiv sa 4.';
+        errorMsg.textContent = label + ': broj fotografija mora biti deljiv sa 4.';
         return;
       }
     }
@@ -1071,7 +1119,7 @@
       html += '<div class="summary-row"><span class="k">' + escapeHtml(r[0]) + '</span><span class="v">' + escapeHtml(r[1]) + '</span></div>';
     });
     orderState.albums.forEach(function (a, i) {
-      html += '<div class="summary-row"><span class="k">Knjiga ' + (i + 1) + ' — ' + escapeHtml(a.destination) + '</span><span class="v">' + a.totalCount + ' slika</span></div>';
+      html += '<div class="summary-row"><span class="k">Knjiga ' + (i + 1) + ' — ' + escapeHtml(a.destination) + '</span><span class="v">' + a.totalCount + ' fotografija</span></div>';
     });
     document.getElementById('summaryBox').innerHTML = html;
   }

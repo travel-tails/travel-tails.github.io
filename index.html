@@ -918,16 +918,26 @@
       var xhr = new XMLHttpRequest();
       xhr.open('PUT', sessionUrl, true);
       xhr.setRequestHeader('Content-Type', mimeType || 'application/octet-stream');
-      xhr.timeout = 120000;
+      // Bez fiksnog roka: prekidamo samo ako 60s nema nijednog napretka (zaglavljena
+      // konekcija). Spora ali živa konekcija sa velikim fajlovima tako ne puca.
+      var stall = null;
+      function armStall() {
+        clearTimeout(stall);
+        stall = setTimeout(function () { xhr.abort(); reject(new Error('Isteklo je vreme za slanje fotografije.')); }, 60000);
+      }
+      armStall();
+      reportBytes(file, 0);
+      xhr.upload.onprogress = function (e) { armStall(); reportBytes(file, e.loaded); };
       xhr.onload = function () {
+        clearTimeout(stall);
         if (xhr.status >= 200 && xhr.status < 300) {
+          reportBytes(file, file.size);
           resolve();
         } else {
           reject(new Error('Slanje fotografije nije uspelo (kod ' + xhr.status + ').'));
         }
       };
-      xhr.onerror = function () { reject(new Error('Mrežna greška pri slanju fotografije.')); };
-      xhr.ontimeout = function () { reject(new Error('Isteklo je vreme za slanje fotografije.')); };
+      xhr.onerror = function () { clearTimeout(stall); reject(new Error('Mrežna greška pri slanju fotografije.')); };
       xhr.send(file);
     });
   }
@@ -956,11 +966,8 @@
         var targets = ordered.map(function (o, i) {
           return { file: o.file, mimeType: o.mimeType, sessionUrl: urls[i] };
         });
-        // Najveći fajlovi prvi: na kraju ne ostaje jedan veliki fajl koji sam
-        // usporava završetak. Imena fajlova (redosled) su već vezana za sessionUrl.
-        targets.sort(function (a, b) { return b.file.size - a.file.size; });
 
-        var CONCURRENCY = 8;
+        var CONCURRENCY = 3;
         var nextIdx = 0;
         var inFlight = 0;
         var failed = false;
@@ -1034,6 +1041,10 @@
 
     var totalAll = albums.reduce(function (sum, a) { return sum + a.files.length; }, 0);
     var doneAll = 0;
+    uploadState.loaded = new Map();
+    uploadState.totalBytes = albums.reduce(function (sum, a) {
+      return sum + a.files.reduce(function (s2, e) { return s2 + e.file.size; }, 0);
+    }, 0);
     updateProgress(0, totalAll);
 
     var albumsMeta = albums.map(function (a) { return { destination: a.destination, totalCount: a.files.length }; });
@@ -1124,10 +1135,26 @@
     document.getElementById('summaryBox').innerHTML = html;
   }
 
+  var uploadState = { done: 0, total: 0, totalBytes: 0, loaded: new Map() };
+
+  function reportBytes(file, loaded) {
+    uploadState.loaded.set(file, loaded);
+    renderProgress();
+  }
+
   function updateProgress(done, total) {
-    var pct = total > 0 ? Math.round(done / total * 100) : 0;
-    document.getElementById('progressFill').style.width = pct + '%';
-    document.getElementById('progressText').textContent = 'Slanje... ' + done + ' / ' + total;
+    uploadState.done = done;
+    uploadState.total = total;
+    renderProgress();
+  }
+
+  function renderProgress() {
+    var loaded = 0;
+    uploadState.loaded.forEach(function (v) { loaded += v; });
+    var pct = uploadState.totalBytes > 0 ? Math.min(100, loaded / uploadState.totalBytes * 100) : 0;
+    document.getElementById('progressFill').style.width = pct.toFixed(1) + '%';
+    document.getElementById('progressText').textContent =
+      (loaded > 0 ? 'Slanje... ' : 'Priprema slanja... ') + uploadState.done + ' / ' + uploadState.total + ' fotografija (' + Math.floor(pct) + '%)';
   }
 
   // Prvi album je uvek prisutan na startu.

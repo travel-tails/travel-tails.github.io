@@ -1,0 +1,1841 @@
+/* Travel Tails – konfigurator knjige (lokalni prototip).
+   Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
+(function () {
+  'use strict';
+
+  const { COVERS, CUSTOM, TEMPLATES, coverSVG, backSVG, spineSVG } = window.TT;
+  const MIN = 40, MAX = 140, STEP = 4, FH = 297 / 210, FRAME = 0.05;
+  const YEAR = String(new Date().getFullYear());
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const norm = (s) => (s || '').toLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let uidN = 0;
+  const uid = () => 'p' + ++uidN;
+  const coverById = (id) => (id === 'custom' ? CUSTOM : COVERS.find((c) => c.id === id) || TEMPLATES.find((c) => c.id === id));
+  const stranica = (n) => {
+    const x = n % 10, y = n % 100;
+    return x === 1 && y !== 11 ? 'stranica' : x >= 2 && x <= 4 && (y < 12 || y > 14) ? 'stranice' : 'stranica';
+  };
+
+  /* Cenovnik: gornja granica broja fotografija → cena u dinarima */
+  const TIERS = [[40, 3800], [60, 4400], [80, 5000], [100, 5600], [120, 6300], [140, 7000]];
+  const tierOf = (n) => TIERS.find((t) => n <= t[0]) || TIERS[TIERS.length - 1];
+  const priceFor = (n) => tierOf(n)[1];
+  const money = (n) => String(n).replace(/\B(?=(\d{3})+$)/g, '.') + ' RSD';
+  const goodCount = (n) => n >= MIN && n <= MAX && n % STEP === 0;
+  const countOf = (b) => b.photos.filter((p) => p.status !== 'error').length;
+  // ista pravila kao na traveltails.rs: najmanje 40 i broj deljiv sa 4
+  const countProblem = (n) => {
+    if (n < MIN) return `Nedostaje još ${MIN - n} ${stranica(MIN - n)}.`;
+    if (n % STEP) return `Broj mora biti deljiv sa 4. Dodaj još ${STEP - (n % STEP)} ili ukloni ${n % STEP}.`;
+    return '';
+  };
+
+  const newBook = () => ({ id: uid(), dest: '', coverId: null, title: '', sub: '', year: YEAR, bg: null, ink: null, accent: null, swatch: 0, inkSet: false, note: '', photos: [], autoCover: true, plan: 60, back: { layout: 'text', title: null, sub: null, picks: [], extra: [] }, spine: null });
+  const state = { step: 1, reached: 1, name: '', ig: '', books: [newBook()], active: 0, kind: 'travel', chip: 'pop', ship: 'post', city: '', addr: '', phone: '', note: '', sent: false };
+  const book = () => state.books[state.active];
+  const cover = (b) => (b.coverId ? coverById(b.coverId) : null);
+  const coverOf = (b) => coverSVG(cover(b) || CUSTOM, { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent });
+
+  /* Rikna */
+  const spineText = (b) => (b.spine !== null ? b.spine : [b.title || b.dest, b.sub].filter(Boolean).join(' '));
+  function spineOf(b) {
+    const c = cover(b) || CUSTOM;
+    return spineSVG(c, { bg: b.bg || c.bg, ink: b.ink || c.ink, text: spineText(b), year: '' });
+  }
+
+  /* Zadnja korica */
+  const BACK_SLOTS = {
+    four: [[50, 46, 154, 198], [216, 46, 154, 198], [50, 256, 154, 198], [216, 256, 154, 198]],
+    one: [[50, 46, 320, 408]],
+    text: [],
+    none: [],
+  };
+  const readyOf = (b) => b.photos.filter((p) => p.status === 'ready');
+  function backPhoto(b, i) {
+    const extra = (b.back.extra || []).filter((p) => p.status === 'ready');
+    const ready = readyOf(b);
+    const id = b.back.picks[i];
+    const hit = id && (ready.find((p) => p.id === id) || extra.find((p) => p.id === id));
+    if (hit) return hit;
+    // čim su sve slike učitane, prazna mesta se jednom popune nasumično i tako ostanu
+    if (!ready.length || b.photos.some((p) => p.status === 'loading')) return null;
+    const used = new Set(b.back.picks.filter(Boolean));
+    const free = ready.filter((p) => !used.has(p.id));
+    const pool = free.length ? free : ready;
+    const p = pool[Math.floor(Math.random() * pool.length)];
+    b.back.picks[i] = p.id;
+    return p;
+  }
+  const backTitle = (b) => (b.back.title !== null ? b.back.title : b.title || b.dest);
+  const backSub = (b) => (b.back.sub !== null ? b.back.sub : b.sub);
+  function backOf(b) {
+    const c = cover(b) || CUSTOM;
+    const slots = BACK_SLOTS[b.back.layout].map(([x, y, w, h], i) => {
+      const p = backPhoto(b, i);
+      return { x, y, w, h, href: p ? p.thumb : '' };
+    });
+    const blank = b.back.layout === 'none';
+    return backSVG(c, { bg: b.bg || c.bg, ink: b.ink || c.ink, accent: b.accent || c.accent, title: blank ? '' : backTitle(b), sub: blank ? '' : backSub(b), slots });
+  }
+
+  /* ---------- zapamti tekstualna polja ---------- */
+  const store = {
+    load() {
+      try {
+        const d = JSON.parse(localStorage.getItem('tt-form') || '{}');
+        ['name', 'ig', 'city', 'addr', 'phone'].forEach((k) => { if (d[k]) state[k] = d[k]; });
+      } catch (e) { /* privatni prozor */ }
+    },
+    save() {
+      try {
+        localStorage.setItem('tt-form', JSON.stringify({ name: state.name, ig: state.ig, city: state.city, addr: state.addr, phone: state.phone }));
+      } catch (e) { /* privatni prozor */ }
+    },
+  };
+
+  /* ---------- stepper i navigacija ---------- */
+  const STEPS = ['Informacije', 'Korice', 'Fotografije', 'Slanje'];
+  function renderStepper() {
+    $('#stepper').innerHTML = STEPS.map((t, i) => {
+      const n = i + 1;
+      const cls = state.step === n ? 'on' : n < state.step || n <= state.reached ? 'done' : '';
+      return `<li class="${cls}"><button type="button" data-go="${n}" ${state.step === n ? 'aria-current="step"' : ''}><i>${n < state.step ? '✓' : n}</i><span>${t}</span></button></li>`;
+    }).join('');
+  }
+  function renderBookTabs() {
+    const el = $('#bookTabs');
+    const show = state.books.length > 1 && (state.step === 2 || state.step === 3);
+    el.hidden = !show;
+    if (show) el.innerHTML = state.books.map((b, i) => `<button type="button" data-book="${i}" class="${i === state.active ? 'on' : ''}">Knjiga ${i + 1}${b.title || b.dest ? ': ' + esc(b.title || b.dest) : ''}</button>`).join('');
+  }
+
+  function validate(n, silent) {
+    const b = book();
+    if (n === 1) {
+      const destOK = b.dest.trim().length > 0;
+      if (!silent) {
+        setErr('Dest', destOK ? '' : 'Napiši gde je bilo putovanje ili o čemu je knjiga.', $('#fDest'));
+        if (!destOK) $('#fDest').focus();
+      }
+      return destOK;
+    }
+    if (n === 2) {
+      if (!b.coverId) {
+        if (silent) return false;
+        selectCover('custom', true);
+        toast('Nastavljaš sa osnovnim dizajnom, a dizajn dogovaramo na Instagramu.');
+      }
+      return true;
+    }
+    if (n === 3) {
+      const loading = b.photos.some((p) => p.status === 'loading');
+      const ok = b.photos.filter((p) => p.status === 'ready').length;
+      if (!silent) {
+        if (loading) toast('Još učitavamo fotografije, sačekaj trenutak.');
+        else if (!goodCount(ok)) toast(countProblem(ok));
+      }
+      return !loading && goodCount(ok);
+    }
+    return true;
+  }
+
+  function goTo(n, force) {
+    if (!force && n > state.step) {
+      for (let s = state.step; s < n; s++) if (!validate(s)) { if (s !== state.step) goTo(s, true); return; }
+    }
+    state.step = n;
+    if (n <= 4) state.reached = Math.max(state.reached, n);
+    $('#app').dataset.step = n;
+    $$('.step').forEach((s) => s.classList.toggle('on', s.id === 'step-' + n));
+    document.body.classList.remove('sheet-open');
+    renderStepper();
+    renderBookTabs();
+    if (n === 1) renderStep1();
+    if (n === 2) enterCovers();
+    if (n === 3) renderPhotos();
+    if (n === 4) renderSend();
+    renderFoot();
+    window.scrollTo(0, 0);
+    $$('.panel.left, .board').forEach((p) => (p.scrollTop = 0));
+  }
+
+  function renderFoot() {
+    const next = $('#btnNext'), hint = $('#footHint'), b = book();
+    if (state.step === 1) { next.textContent = 'Dalje: korice →'; hint.textContent = `${b.plan} ${stranica(b.plan)}, ${money(priceFor(b.plan))}`; }
+    if (state.step === 2) { next.textContent = 'Dalje: fotografije →'; hint.textContent = b.coverId ? `Izabrano: ${cover(b).name}` : ''; }
+    if (state.step === 3) {
+      next.textContent = 'Dalje: slanje →';
+      const n = countOf(b);
+      hint.textContent = !n ? '' : goodCount(n) ? `${n} ${stranica(n)}, ${money(priceFor(n))}` : countProblem(n);
+    }
+    if (state.step === 4) {
+      next.textContent = 'Pošalji fotografije';
+      const t = state.books.reduce((a, x) => a + x.photos.length, 0);
+      hint.textContent = `${state.books.length} ${state.books.length === 1 ? 'knjiga' : state.books.length < 5 ? 'knjige' : 'knjiga'}, ${t} ${stranica(t)}, ukupno ${money(orderTotal())}`;
+    }
+  }
+
+  const orderTotal = () => state.books.reduce((a, x) => a + (goodCount(countOf(x)) ? priceFor(countOf(x)) : 0), 0);
+
+  function setErr(key, msg, input) {
+    $('#e' + key).textContent = msg;
+    input.classList.toggle('invalid', !!msg);
+  }
+
+  /* ---------- toast sa „Vrati" ---------- */
+  let toastT;
+  function toast(msg, undo) {
+    const t = $('#toast');
+    t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Vrati</button>' : ''}`;
+    t.hidden = false;
+    if (undo) $('button', t).onclick = () => { undo(); t.hidden = true; };
+    clearTimeout(toastT);
+    toastT = setTimeout(() => (t.hidden = true), undo ? 6000 : 3400);
+  }
+
+  /* ---------- 1. Informacije ---------- */
+  const PLANS = [40, 60, 80, 100];
+  function renderStep1() {
+    $('#fDest').value = book().dest;
+    renderPlans();
+  }
+  const ICON_PATHS = {
+    pin: '<path d="M12 22s7-6.400 7-12a7 7 0 1 0-14 0c0 5.600 7 12 7 12Z"/><circle cx="12" cy="10" r="2.500"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    cake: '<path d="M4 21h16M5 21v-7h14v7M5 16.500c2.300 1.600 4.700 1.600 7 0s4.700-1.600 7 0M12 14v-3M8 14v-3M16 14v-3"/><path d="M12 8c.900-.700 1-1.700 0-3-1 1.300-.900 2.300 0 3Z"/>',
+    heart: '<path d="M12 20s-7-4.400-7-10a4 4 0 0 1 7-2.600A4 4 0 0 1 19 10c0 5.600-7 10-7 10Z"/>',
+    rings: '<circle cx="9" cy="14" r="5"/><circle cx="15" cy="14" r="5"/><path d="M10 6l2-2.500L14 6"/>',
+    cross: '<path d="M12 3v18M7 8h10"/>',
+    baby: '<path d="M4 10h13a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5ZM4 10a8 8 0 0 1 8-7v7"/><circle cx="8" cy="19" r="2"/><circle cx="16" cy="19" r="2"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    plane: '<path d="M3 13l18-8-6 16-3-7z"/><path d="M12 14l9-9"/>',
+  };
+  const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[k] || ICON_PATHS.pin}</svg>`;
+  const CAT_ICON = { rodj: 'cake', krst: 'cross', deca: 'baby', venc: 'rings', ljub: 'heart', drug: 'heart', porod: 'heart', usp: 'plane' };
+  const THEME_ICON = { firstbday: 'cake', birthday: 'cake', birthday18: 'cake', baptism: 'cross', baby: 'baby', wedding: 'rings', honeymoon: 'heart', anniversary: 'calendar', love: 'heart', couple: 'plane' };
+  const PLACES_RAW = 'Bar|Crna Gora;Budva|Crna Gora;Kotor|Crna Gora;Tivat|Crna Gora;Herceg Novi|Crna Gora;Ulcinj|Crna Gora;Petrovac|Crna Gora;Sveti Stefan|Crna Gora;Žabljak|Crna Gora;Beograd|Srbija;Novi Sad|Srbija;Niš|Srbija;Zlatibor|Srbija;Kopaonik|Srbija;Dubrovnik|Hrvatska;Split|Hrvatska;Zadar|Hrvatska;Hvar|Hrvatska;Rovinj|Hrvatska;Pula|Hrvatska;Trogir|Hrvatska;Zagreb|Hrvatska;Makarska|Hrvatska;Sarajevo|Bosna i Hercegovina;Mostar|Bosna i Hercegovina;Neum|Bosna i Hercegovina;Ljubljana|Slovenija;Bled|Slovenija;Skoplje|Severna Makedonija;Ohrid|Severna Makedonija;Tirana|Albanija;Saranda|Albanija;Ksamil|Albanija;Sofija|Bugarska;Varna|Bugarska;Sunčev Breg|Bugarska;Bukurešt|Rumunija;Budimpešta|Mađarska;Beč|Austrija;Salcburg|Austrija;Prag|Češka;Krakov|Poljska;Varšava|Poljska;Berlin|Nemačka;Minhen|Nemačka;Hamburg|Nemačka;Amsterdam|Holandija;Brisel|Belgija;Brige|Belgija;Pariz|Francuska;Nica|Francuska;Kan|Francuska;Lion|Francuska;Monako|Monako;London|Velika Britanija;Edinburg|Škotska;Dablin|Irska;Madrid|Španija;Barselona|Španija;Sevilja|Španija;Valensija|Španija;Malaga|Španija;Majorka|Španija;Ibica|Španija;Tenerife|Španija;Gran Kanarija|Španija;Lisabon|Portugal;Porto|Portugal;Madeira|Portugal;Azori|Portugal;Rim|Italija;Milano|Italija;Venecija|Italija;Firenca|Italija;Napulj|Italija;Bari|Italija;Amalfi|Italija;Kapri|Italija;Sardinija|Italija;Sicilija|Italija;Toskana|Italija;Elba|Italija;Verona|Italija;Cirih|Švajcarska;Ženeva|Švajcarska;Interlaken|Švajcarska;Oslo|Norveška;Stokholm|Švedska;Kopenhagen|Danska;Helsinki|Finska;Rejkjavik|Island;Atina|Grčka;Santorini|Grčka;Mikonos|Grčka;Krit|Grčka;Rodos|Grčka;Krf|Grčka;Zakintos|Grčka;Lefkada|Grčka;Kefalonija|Grčka;Tasos|Grčka;Skijatos|Grčka;Parga|Grčka;Halkidiki|Grčka;Sitonija|Grčka;Kasandra|Grčka;Solun|Grčka;Istanbul|Turska;Antalija|Turska;Alanja|Turska;Bodrum|Turska;Kapadokija|Turska;Marmaris|Turska;Kipar|Država;Malta|Država;Grčka|Država;Italija|Država;Španija|Država;Francuska|Država;Nemačka|Država;Austrija|Država;Švajcarska|Država;Portugal|Država;Hrvatska|Država;Crna Gora|Država;Turska|Država;Albanija|Država;Bugarska|Država;Srbija|Država;Egipat|Država;Maroko|Država;Tunis|Država;Japan|Država;Kina|Država;Tajland|Država;Vijetnam|Država;Indonezija|Država;Indija|Država;Šri Lanka|Država;Maldivi|Država;Mauricijus|Država;Sejšeli|Država;Kenija|Država;Bahami|Država;Kuba|Država;Dominikana|Država;Meksiko|Država;Peru|Država;Brazil|Država;Argentina|Država;Kanada|Država;Australija|Država;Novi Zeland|Država;Hurgada|Egipat;Šarm el Šeik|Egipat;Kairo|Egipat;Marakeš|Maroko;Kejp Taun|Južna Afrika;Zanzibar|Tanzanija;Dubai|UAE;Abu Dabi|UAE;Doha|Katar;Tokio|Japan;Kjoto|Japan;Seul|Južna Koreja;Singapur|Singapur;Hong Kong|Kina;Bangkok|Tajland;Puket|Tajland;Bali|Indonezija;Njujork|SAD;Los Anđeles|SAD;Las Vegas|SAD;Majami|SAD;San Francisko|SAD;Havaji|SAD;Kankun|Meksiko;Havana|Kuba;Rio de Žaneiro|Brazil;Buenos Ajres|Argentina;Sidnej|Australija;Melburn|Australija';
+  const PLACES = (() => {
+    const m = new Map();
+    PLACES_RAW.split(';').forEach((x) => { const [name, sub] = x.split('|'); m.set(norm(name), { name, sub, aka: '', icon: sub === 'Država' ? 'globe' : 'pin' }); });
+    COVERS.forEach((c) => {
+      const k = norm(c.name), hit = m.get(k), aka = norm(c.aka + ' ' + c.title);
+      if (hit) { if (!hit.aka.includes(aka)) hit.aka += ' ' + aka; }
+      else m.set(k, { name: c.name, sub: c.other ? 'Tema' : c.country || 'Država', aka, icon: c.other ? THEME_ICON[c.id] || CAT_ICON[c.cat[0]] || 'heart' : c.country ? 'pin' : 'globe' });
+    });
+    return [...m.values()];
+  })();
+  function matchPlaces(q) {
+    const n = norm(q);
+    if (!n) return [];
+    const rank = (p) => {
+      const v = norm(p.name);
+      if (v === n) return 0;
+      if (v.startsWith(n)) return 1;
+      if (v.split(' ').some((w) => w.startsWith(n))) return 2;
+      if (p.aka.split(' ').some((w) => w.startsWith(n))) return 3;
+      return p.sub !== 'Država' && norm(p.sub).startsWith(n) ? 4 : 9;
+    };
+    return PLACES.map((p) => [p, rank(p) + (p.sub === 'Tema' ? 0.5 : 0)]).filter((x) => x[1] < 9).sort((x, y) => x[1] - y[1] || x[0].name.localeCompare(y[0].name, 'sr')).slice(0, 8).map((x) => x[0]);
+  }
+  // padajuća lista: ista za destinaciju (korak 1) i pretragu korica (korak 2)
+  function makeCombo(input, list, onPick) {
+    let items = [], active = -1;
+    const close = () => {
+      items = []; active = -1;
+      list.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    };
+    const paint = () => {
+      list.innerHTML = items.map((p, i) => `<li role="option" id="${list.id}-${i}" data-i="${i}" aria-selected="${i === active}" class="${i === active ? 'on' : ''}">${icon(p.icon)}<b>${esc(p.name)}</b><span>${esc(p.sub === 'Država' ? 'država' : p.sub === 'Tema' ? 'tema' : p.sub)}</span></li>`).join('');
+      if (active >= 0) { input.setAttribute('aria-activedescendant', `${list.id}-${active}`); $(`#${list.id}-${active}`).scrollIntoView({ block: 'nearest' }); }
+      else input.removeAttribute('aria-activedescendant');
+    };
+    const open = () => {
+      const v = input.value;
+      items = matchPlaces(v);
+      active = -1;
+      if (!items.length || (items.length === 1 && norm(items[0].name) === norm(v))) { close(); return; }
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      paint();
+      list.scrollIntoView({ block: 'nearest' });
+    };
+    const pick = (p) => { close(); onPick(p); };
+    input.addEventListener('focus', open);
+    input.addEventListener('blur', close);
+    input.addEventListener('keydown', (e) => {
+      if (list.hidden) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const n = items.length, d = e.key === 'ArrowDown' ? 1 : -1;
+        active = active < 0 && d < 0 ? n - 1 : (active + d + n) % n;
+        paint();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (active >= 0) pick(items[active]); else close();
+      } else if (e.key === 'Escape') close();
+    });
+    // pointerdown da polje ne izgubi fokus pre izbora
+    list.addEventListener('pointerdown', (e) => {
+      const li = e.target.closest('[data-i]');
+      e.preventDefault();
+      if (li) pick(items[+li.dataset.i]);
+    });
+    return { open, close };
+  }
+  const destCombo = makeCombo($('#fDest'), $('#destList'), (p) => {
+    $('#fDest').value = p.name;
+    setDest(p.name);
+    setErr('Dest', '', $('#fDest'));
+  });
+  const searchCombo = makeCombo($('#coverSearch'), $('#coverSearchList'), (p) => {
+    $('#coverSearch').value = p.name;
+    book().dest = p.name;
+    book().query = p.name;
+    state.kind = p.sub === 'Tema' ? 'other' : 'travel';
+    state.chip = allChip();
+    renderKinds(); renderChips(); renderGrid();
+  });
+
+  function renderPlans() {
+    const n = book().plan;
+    $('#plans').innerHTML = PLANS.map((k) => `<button type="button" role="radio" class="plan ${n === k ? 'on' : ''}" aria-checked="${n === k}" data-plan="${k}"><b>${k}</b><span>stranica</span><strong>${money(priceFor(k))}</strong></button>`).join('');
+    const r = $('#planRange');
+    r.value = n;
+    r.style.setProperty('--pct', ((n - MIN) / (MAX - MIN)) * 100 + '%');
+    $('#planOut').textContent = `Tvoja knjiga: ${n} ${stranica(n)}`;
+    $('#planPrice').textContent = money(priceFor(n));
+  }
+  function setPlan(n) { book().plan = n; renderPlans(); renderFoot(); }
+  $('#plans').addEventListener('click', (e) => { const b = e.target.closest('[data-plan]'); if (b) setPlan(+b.dataset.plan); });
+  $('#planRange').addEventListener('input', (e) => setPlan(+e.target.value));
+  $('#fName').addEventListener('input', (e) => { state.name = e.target.value; store.save(); if (e.target.classList.contains('invalid')) setErr('Name', '', e.target); });
+  $('#fIg').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/^@+/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/.*$/, '').replace(/\s/g, '');
+    state.ig = e.target.value; store.save();
+    if (e.target.classList.contains('invalid')) setErr('Ig', '', e.target);
+  });
+  $('#fDest').addEventListener('input', (e) => { setDest(e.target.value); destCombo.open(); if (e.target.classList.contains('invalid')) setErr('Dest', '', e.target); });
+  function setDest(v) {
+    const b = book();
+    b.dest = v; b.autoCover = true;
+  }
+  $('#infoForm').addEventListener('submit', (e) => { e.preventDefault(); goTo(2); });
+
+  /* ---------- 2. Korice ---------- */
+  const CONTINENTS = [['evropa', 'Evropa'], ['azija', 'Azija'], ['afrika', 'Afrika'], ['amerika', 'Amerika'], ['australija', 'Australija']];
+  const contOf = (c) => (!c.cont || c.cont === 'balkan' ? 'evropa' : c.cont);
+  const CHIPS = {
+    travel: [['pop', 'Najpopularnije'], ...CONTINENTS],
+    other: [['sve', 'Sve'], ['rodj', 'Rođendani'], ['krst', 'Krštenja'], ['deca', 'Bebe i deca'], ['venc', 'Venčanja'], ['ljub', 'Ljubav'], ['drug', 'Drugarice'], ['porod', 'Porodica'], ['usp', 'Uspomene']],
+  };
+  const allChip = () => (state.kind === 'other' ? 'sve' : 'pop');
+  const startChip = allChip;
+  const inChip = (c, k) => !!c.other === (state.kind === 'other') && (k === 'sve' || (k === 'pop' ? c.featIdx >= 0 : c.other ? c.cat.includes(k) : contOf(c) === k));
+  const NAVY = '#153a55';
+  const SWATCHES = [null, ['#65c8f6', NAVY, NAVY], ['#f6e27a', '#1f2a6b', '#c1246d'], ['#f4b3c4', '#ffffff', '#bb1f3a'], ['#a9d8c6', '#1a2e7c', '#1a2e7c'], ['#14763a', '#ececea', '#e9bd3d'], ['#1f2a6b', '#ffffff', '#f6e27a'], ['#f6f2ea', NAVY, '#a48745']];
+
+  function enterCovers() {
+    const b = book();
+    const q = b.autoCover ? b.dest : b.query || '';
+    $('#coverSearch').value = q;
+    b.query = q;
+    if (b.autoCover && b.dest) {
+      const n = norm(b.dest), hit = COVERS.find((c) => norm(c.name) === n || norm(c.title) === n);
+      if (!b.coverId || b.autoPicked) {
+        if (hit) { selectCover(hit.id, true); b.autoPicked = true; }
+        else if (b.autoPicked) { b.coverId = null; b.autoPicked = false; }
+      }
+    }
+    const shown = cover(b) || (q && matchCovers(q)[0]);
+    state.kind = shown && shown.other ? 'other' : 'travel';
+    state.chip = q ? allChip() : startChip();
+    b.autoCover = false;
+    closePicker();
+    renderKinds();
+    renderChips();
+    renderGrid();
+    renderTuner();
+  }
+  function renderKinds() {
+    $$('#coverKind button').forEach((x) => {
+      const on = x.dataset.kind === state.kind;
+      x.classList.toggle('on', on);
+      x.setAttribute('aria-selected', on);
+    });
+  }
+  const CAT_WORDS = { rodj: 'rođendan rođendani rodjendan birthday', krst: 'krštenje krstenje krštenja', deca: 'beba bebe deca dete baby', venc: 'venčanje vencanje svadba wedding medeni mesec', ljub: 'ljubav love par', drug: 'drugarice matura devojačko devojacko', porod: 'porodica family', usp: 'uspomene memories putovanja leto summer svet world skijanje ski' };
+  function matchCovers(q) {
+    const n = norm(q);
+    const words = n.split(/\s+/).filter(Boolean);
+    return COVERS.filter((c) => {
+      const hay = norm(c.aka + ' ' + c.name + ' ' + c.title + ' ' + (c.country || '') + ' ' + (c.other ? (c.cat || []).map((k) => CAT_WORDS[k] || '').join(' ') : ''));
+      return words.every((w) => hay.includes(w));
+    });
+  }
+  function renderChips() {
+    $('#coverChips').innerHTML = CHIPS[state.kind].map(([k, t]) => `<button type="button" role="tab" data-chip="${k}" class="${state.chip === k ? 'on' : ''}">${t}</button>`).join('');
+  }
+  const placeSub = (name) => {
+    const p = PLACES.find((x) => norm(x.name) === norm(name || ''));
+    return p && p.sub !== 'Država' && p.sub !== 'Tema' ? p.sub : '';
+  };
+  const dizajna = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'dizajn' : 'dizajna');
+  // ravnomerno: po jedan dizajn iz svakog mesta, pa sledeći krug
+  function spread(list) {
+    const m = new Map();
+    list.forEach((c) => { if (!m.has(c.name)) m.set(c.name, []); m.get(c.name).push(c); });
+    const groups = [...m.values()], out = [];
+    for (let i = 0; groups.some((g) => g[i]); i++) groups.forEach((g) => g[i] && out.push(g[i]));
+    return out;
+  }
+  // dopuna: samo neutralni dizajni (bez znamenitosti), nasumičan izbor koji se može dopunjavati ("Učitaj još")
+  function fillFor(q, main, more) {
+    const have = new Set(main.map((c) => c.id));
+    const neutral = COVERS.filter((c) => c.neutral && c.fig && c.fig.T.length && !have.has(c.id));
+    if (!state.fillPick || state.fillPick.q !== q) state.fillPick = { q, ids: neutral.slice().sort(() => Math.random() - 0.5).map((c) => c.id) };
+    const byId = new Map(neutral.map((c) => [c.id, c]));
+    const want = (main.length >= 8 ? 6 : 12) + 12 * (more || 0);
+    return state.fillPick.ids.map((id) => byId.get(id)).filter(Boolean).slice(0, want);
+  }
+  function card(c, as) {
+    const b = book();
+    const on = b.coverId === c.id && (b.coverAs || '') === (as || '');
+    const o = as ? { title: as, sub: placeSub(as) } : {};
+    const img = c.fig ? TTF.figmaCard(c, o) : coverSVG(c, Object.assign({ year: c.other ? '' : YEAR }, o));
+    return `<button type="button" class="cv ${on ? 'sel' : ''}" data-cover="${c.id}"${as ? ` data-as="${esc(as)}"` : ''} aria-pressed="${on}" aria-label="${esc(as || c.title || c.name)}"><span class="cv-img">${img}</span></button>`;
+  }
+  function groupsOf(list) {
+    const m = new Map();
+    list.forEach((c) => { const k = c.other ? c.cat[0] : c.name; if (!m.has(k)) m.set(k, []); m.get(k).push(c); });
+    return m;
+  }
+  function renderGrid() {
+    const q = $('#coverSearch').value.trim();
+    const b = book();
+    let html = '';
+    if (q) {
+      const n = norm(q);
+      const list = matchCovers(q);
+      // tačno mesto, ili država: "Španija" / "Spain" daje i Madrid, Barselonu…; prvo korice baš tog naziva
+      const whole = (c) => (' ' + norm(c.aka || '') + ' ').includes(' ' + n + ' ') || norm(c.country || '') === n;
+      const exact = list.filter((c) => norm(c.name) === n || norm(c.title) === n || whole(c))
+        .sort((a, b) => (norm(a.name) === n || norm(a.title) === n ? 0 : 1) - (norm(b.name) === n || norm(b.title) === n ? 0 : 1));
+      const main = exact.length && !list.some((c) => c.other) ? exact : list;
+      const top = main.filter((c) => c.top), rest = main.filter((c) => !c.top);
+      html += top.map((c) => card(c)).join('');
+      if (state.more === q) html += rest.map((c) => card(c)).join('');
+      else if (rest.length) html += `<button type="button" class="cv-more" data-more>Učitaj još</button>`;
+      if (!main.length) {
+        const fill = fillFor(q, main, state.fillMore && state.fillMore.q === q ? state.fillMore.n : 0);
+        html += fill.map((c) => card(c, q)).join('');
+        const total = COVERS.filter((c) => c.neutral && c.fig && c.fig.T.length).length;
+        if (fill.length < total - main.filter((c) => c.neutral).length) html += `<button type="button" class="cv-more" data-fillmore>Učitaj još</button>`;
+      }
+    } else {
+      let list = COVERS.filter((c) => inChip(c, state.chip));
+      if (state.chip === 'pop') list.sort((a, b) => a.featIdx - b.featIdx);
+      html = list.map((c) => card(c)).join('');
+    }
+    const customTitle = q || (b.coverId === 'custom' && b.title) || 'Tvoja priča';
+    html += `<button type="button" class="cv is-custom ${b.coverId === 'custom' ? 'sel' : ''}" data-cover="custom" aria-pressed="${b.coverId === 'custom'}">
+        <span class="cv-img">${coverSVG(CUSTOM, { title: customTitle })}</span>
+        <span class="cv-name">Nastavi svoju knjigu</span>
+        <span class="cv-tag">Dizajn dogovaramo zajedno na Instagramu</span>
+      </button>`;
+    $('#coverGrid').innerHTML = html;
+    $('#coverEmpty').hidden = true;
+  }
+  function selectCover(id, silent, as) {
+    const b = book(), c = coverById(id);
+    const prev = b.coverId, prevAs = b.coverAs || '';
+    b.coverId = id;
+    b.coverAs = as || '';
+    b.autoPicked = false;
+    if (prev !== id || prevAs !== b.coverAs) {
+      const q = $('#coverSearch').value.trim();
+      b.title = id === 'custom' ? (q || b.dest || '') : as || c.title;
+      b.sub = as ? placeSub(as) : c.sub;
+      b.year = c.fig ? c.year : c.other ? '' : YEAR;
+      b.bg = b.ink = b.accent = null;
+      b.swatch = 0;
+      b.inkSet = false;
+      b.spine = null;
+    }
+    if (!b.dest) b.dest = id === 'custom' ? b.title : as || c.name;
+    if (silent) return;
+    closePicker();
+    $$('.cv').forEach((x) => {
+      const on = x.dataset.cover === id && (x.dataset.as || '') === b.coverAs;
+      x.classList.toggle('sel', on);
+      x.setAttribute('aria-pressed', on);
+    });
+    if (prev !== id || prevAs !== b.coverAs) showFace('front');
+    renderTuner();
+    renderFoot();
+    renderBookTabs();
+    if (matchMedia('(max-width:820px)').matches) document.body.classList.add('sheet-open');
+  }
+  function renderMock() {
+    const b = book();
+    $('#coverMock').innerHTML = b.coverId ? `<div class="book3d" id="book3d" style="--ry:${mockRy}deg"><div class="face f-front">${coverOf(b)}</div><div class="face f-back">${backOf(b)}</div><div class="face f-spine">${spineOf(b)}</div><div class="face f-edge"></div><div class="face f-top"></div><div class="face f-bottom"></div></div><span class="b3d">3D</span>` : '';
+  }
+  function renderTuner() {
+    const b = book(), has = !!b.coverId;
+    $('#tuner').hidden = !has;
+    $('#customizer').classList.toggle('is-custom', b.coverId === 'custom');
+    $('#stageHint').hidden = has;
+    renderMock();
+    if (!has) return;
+    $('#cTitle').value = b.title;
+    $('#cSub').value = b.sub;
+    $('#cYear').value = b.year;
+    $('#cSpine').value = spineText(b);
+    $('#tBackTitle').value = backTitle(b);
+    $('#tBackSub').value = backSub(b);
+    $$('#tLayout button').forEach((x) => x.classList.toggle('on', x.dataset.l === b.back.layout));
+    $('#tBackText').hidden = b.back.layout === 'none';
+    $('#cCustom').value = b.note;
+    $('#cCustomField').hidden = b.coverId !== 'custom';
+    const cv = cover(b), roles = cv.fig ? new Set(cv.fig.T.filter((t) => !((cv.adj || {})[t.r] || {}).hide).map((t) => t.r)) : null;
+    $('#cTitle').closest('.field').hidden = !!roles && !roles.has('t');
+    $('#cSub').closest('.field').hidden = !!roles && !roles.has('s');
+    $('#cYearField').hidden = roles ? !roles.has('y') : !!cv.subBottom;
+    $('#cYearField').style.display = '';
+    $('#swatches').closest('.field').hidden = !!(cv.fig && (cv.fig.lock || cv.fig.fx));
+    if (!$('#faceTabs .on')) {
+      const shown = ($$('#tunerMain .pane').find((x) => !x.hidden) || {}).dataset;
+      const f = shown ? shown.pane : 'front';
+      $$('#faceTabs button').forEach((x) => { x.classList.toggle('on', x.dataset.face === f); x.setAttribute('aria-selected', x.dataset.face === f); });
+    }
+    renderSwatches();
+  }
+  function renderSwatches() {
+    const b = book();
+    $('#swatches').innerHTML = SWATCHES.map((s, i) => `<button type="button" data-sw="${i}" class="${i === 0 ? 'orig' : ''} ${b.swatch === i ? 'on' : ''}" ${s ? `style="background:${s[0]}"` : ''} aria-label="${i === 0 ? 'Originalna boja' : 'Boja ' + i}"></button>`).join('') +
+      (b.swatch === -1 ? `<button type="button" data-sw="-1" class="on" style="background:${b.bg}" aria-label="Tvoja boja"></button>` : '');
+  }
+  $('#coverKind').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-kind]');
+    if (!b) return;
+    state.kind = b.dataset.kind;
+    state.chip = startChip();
+    $('#coverSearch').value = '';
+    book().query = '';
+    renderKinds(); renderChips(); renderGrid();
+  });
+  $('#coverChips').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-chip]');
+    if (!b) return;
+    state.chip = b.dataset.chip;
+    $('#coverSearch').value = '';
+    book().query = '';
+    renderChips(); renderGrid();
+  });
+  $('#coverSearch').addEventListener('input', () => {
+    const q = $('#coverSearch').value.trim();
+    book().query = q;
+    if (q && state.chip !== allChip()) { state.chip = allChip(); renderChips(); }
+    renderGrid();
+    searchCombo.open();
+  });
+  $('#coverGrid').addEventListener('click', (e) => {
+    if (e.target.closest('[data-fillmore]')) { const q = $('#coverSearch').value.trim(); state.fillMore = { q, n: (state.fillMore && state.fillMore.q === q ? state.fillMore.n : 0) + 1 }; renderGrid(); return; }
+    if (e.target.closest('[data-more]')) { state.more = $('#coverSearch').value.trim(); renderGrid(); return; }
+    const c = e.target.closest('[data-cover]');
+    if (!c) return;
+    const hit = coverById(c.dataset.cover);
+    if (c.dataset.as) { selectCover(c.dataset.cover, false, c.dataset.as); return; }
+    // klik na destinaciju iz pregleda: prikaži je zajedno sa još primera dizajna
+    if (!$('#coverSearch').value.trim() && hit && !hit.other && hit.id !== 'custom') {
+      $('#coverSearch').value = hit.name;
+      book().query = hit.name;
+      state.chip = allChip();
+      renderChips();
+      renderGrid();
+      const scroller = $('#coverGrid').closest('.panel');
+      if (scroller) scroller.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    selectCover(c.dataset.cover);
+  });
+  [['#cTitle', 'title'], ['#cSub', 'sub'], ['#cYear', 'year'], ['#cSpine', 'spine'], ['#cCustom', 'note']].forEach(([sel, key]) => {
+    $(sel).addEventListener('input', (e) => {
+      const b = book();
+      b[key] = e.target.value;
+      if (key !== 'note') renderMock();
+      if (key === 'title') renderBookTabs();
+      if ((key === 'title' || key === 'sub') && b.spine === null) $('#cSpine').value = spineText(b);
+    });
+  });
+  // Jedan klik bira boju, dupli klik (ili dupli dodir na telefonu) otvara celu paletu.
+  let lastSw = { i: null, t: 0 };
+  $('#swatches').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-sw]');
+    if (!t) return;
+    const b = book(), i = +t.dataset.sw, now = Date.now();
+    const twice = lastSw.i === i && now - lastSw.t < 420;
+    const phone = matchMedia('(max-width:820px)').matches;
+    lastSw = { i, t: now };
+    if (twice && !phone) { lastSw = { i: null, t: 0 }; openPicker('bg'); return; }
+    if (i !== -1) {
+      const s = SWATCHES[i];
+      b.swatch = i; b.inkSet = false;
+      b.bg = s ? s[0] : null; b.ink = s ? s[1] : null; b.accent = s ? s[2] : null;
+      renderSwatches();
+      renderMock();
+    }
+    if (phone) openPicker('bg');
+  });
+
+  /* ---------- 3D knjiga: prednja, rikna, zadnja ---------- */
+  const FACE_RY = { front: 18, spine: 90, back: 162 };
+  let mockRy = 22;
+  function setRy(v, anim) {
+    mockRy = v;
+    const el = $('#book3d');
+    if (!el) return;
+    el.classList.toggle('dragging', !anim);
+    el.style.setProperty('--ry', v + 'deg');
+    const n = ((v % 360) + 360) % 360;
+    el.style.setProperty('--sc', Math.abs(n - 90) < 25 ? 1.22 : 1);
+    $('#coverMock').classList.toggle('side', Math.abs(n - 90) < 25 || Math.abs(n - 270) < 25);
+  }
+  function showFace(f) {
+    $$('#faceTabs button').forEach((x) => { x.classList.toggle('on', x.dataset.face === f); x.setAttribute('aria-selected', x.dataset.face === f); });
+    $$('#tunerMain .pane').forEach((x) => (x.hidden = x.dataset.pane !== f));
+    const t = FACE_RY[f];
+    setRy(t + 360 * Math.round((mockRy - t) / 360), true);
+  }
+  $('#faceTabs').addEventListener('click', (e) => { const t = e.target.closest('[data-face]'); if (t) showFace(t.dataset.face); });
+  (function () {
+    const m = $('#coverMock');
+    let drag = null;
+    m.addEventListener('pointerdown', (e) => {
+      if (!$('#book3d')) return;
+      drag = { x: e.clientX, ry: mockRy };
+      m.setPointerCapture(e.pointerId);
+    });
+    m.addEventListener('pointermove', (e) => { if (drag) setRy(drag.ry + (e.clientX - drag.x) * 0.6, false); });
+    const end = () => { if (!drag) return; drag = null; const el = $('#book3d'); if (el) el.classList.remove('dragging'); };
+    m.addEventListener('pointerup', end);
+    m.addEventListener('pointercancel', end);
+  })();
+  $('#tLayout').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-l]');
+    if (!t) return;
+    const b = book();
+    b.back.layout = t.dataset.l;
+    b.back.picks = [];
+    $$('#tLayout button').forEach((x) => x.classList.toggle('on', x === t));
+    $('#tBackText').hidden = b.back.layout === 'none';
+    renderMock();
+  });
+  $('#tBackTitle').addEventListener('input', (e) => { book().back.title = e.target.value; renderMock(); });
+  $('#tBackSub').addEventListener('input', (e) => { book().back.sub = e.target.value; renderMock(); });
+
+  /* ---------- paleta boja ---------- */
+  const hsv2rgb = (h, s, v) => {
+    const fn = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return [fn(5), fn(3), fn(1)].map((x) => Math.round(x * 255));
+  };
+  const toHex = (rgb) => '#' + rgb.map((x) => x.toString(16).padStart(2, '0')).join('');
+  const hexRgb = (hex) => {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.replace(/./g, '$&$&');
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const rgb2hsv = (rgb) => {
+    const [r, g, b] = rgb.map((x) => x / 255);
+    const M = Math.max(r, g, b), m = Math.min(r, g, b), d = M - m;
+    let h = 0;
+    if (d) { h = M === r ? ((g - b) / d) % 6 : M === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+    return { h, s: M ? d / M : 0, v: M };
+  };
+  const readable = (hex) => { const [r, g, b] = hexRgb(hex); return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? NAVY : '#ffffff'; };
+
+  let pk = null;
+  function openPicker(target) {
+    const b = book(), c = cover(b);
+    const cur = target === 'bg' ? b.bg || c.bg : b.ink || c.ink;
+    pk = Object.assign({ target }, rgb2hsv(hexRgb(cur)));
+    $('#tunerMain').hidden = true;
+    $('#picker').hidden = false;
+    $('#customizer').classList.add('picking');
+    paintPicker();
+  }
+  function closePicker() {
+    pk = null;
+    $('#picker').hidden = true;
+    $('#tunerMain').hidden = false;
+    $('#customizer').classList.remove('picking');
+  }
+  function paintPicker() {
+    const hex = toHex(hsv2rgb(pk.h, pk.s, pk.v));
+    $('#pkSV').style.background = `linear-gradient(0deg, #000, transparent), linear-gradient(90deg, #fff, transparent), hsl(${pk.h} 100% 50%)`;
+    $('#pkDot').style.left = pk.s * 100 + '%';
+    $('#pkDot').style.top = (1 - pk.v) * 100 + '%';
+    $('#pkDot').style.background = hex;
+    $('#pkHueDot').style.left = (pk.h / 360) * 100 + '%';
+    $('#pkHueDot').style.background = `hsl(${pk.h} 100% 50%)`;
+    $('#pkPrev').style.background = hex;
+    if (document.activeElement !== $('#pkHex')) $('#pkHex').value = hex;
+    $$('#pkTarget button').forEach((x) => x.classList.toggle('on', x.dataset.t === pk.target));
+  }
+  function applyPicker() {
+    const b = book(), hex = toHex(hsv2rgb(pk.h, pk.s, pk.v));
+    if (pk.target === 'bg') {
+      b.bg = hex; b.swatch = -1;
+      if (!b.inkSet) b.ink = b.accent = readable(hex);
+    } else {
+      b.ink = b.accent = hex; b.inkSet = true;
+      if (!b.bg) b.bg = cover(b).bg;
+      if (b.swatch !== -1) b.swatch = -1;
+    }
+    paintPicker();
+    renderMock();
+  }
+  function dragArea(el, fn) {
+    let on = false;
+    const at = (e) => { const r = el.getBoundingClientRect(); fn(clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1)); applyPicker(); };
+    el.addEventListener('pointerdown', (e) => { on = true; el.setPointerCapture(e.pointerId); at(e); });
+    el.addEventListener('pointermove', (e) => { if (on) at(e); });
+    el.addEventListener('pointerup', () => (on = false));
+    el.addEventListener('pointercancel', () => (on = false));
+  }
+  dragArea($('#pkSV'), (x, y) => { pk.s = x; pk.v = 1 - y; });
+  dragArea($('#pkHue'), (x) => { pk.h = x * 359.9; });
+  $('#pkTarget').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (b) openPicker(b.dataset.t); });
+  function setHex(hex) { Object.assign(pk, rgb2hsv(hexRgb(hex))); applyPicker(); }
+  $('#pkHex').addEventListener('input', (e) => {
+    const v = e.target.value.trim();
+    if (/^#?[0-9a-f]{6}$/i.test(v)) setHex(v.startsWith('#') ? v : '#' + v);
+  });
+  $('#pkHex').addEventListener('blur', () => { if (pk) $('#pkHex').value = toHex(hsv2rgb(pk.h, pk.s, pk.v)); });
+  $('#pkDone').onclick = () => { closePicker(); renderSwatches(); };
+  if (window.EyeDropper) {
+    $('#pkEye').hidden = false;
+    $('#pkEye').onclick = () => new window.EyeDropper().open().then((r) => setHex(r.sRGBHex)).catch(() => {});
+  }
+  // „Dogovori se sa nama": otvara Instagram, a knjiga nastavlja sa korom po dogovoru.
+  $('#igHelp').addEventListener('click', () => {
+    selectCover('custom');
+    const b = book();
+    if (!b.note) b.note = 'Dogovor na Instagramu';
+    renderTuner();
+    document.body.classList.remove('sheet-open');
+  });
+  $('#sheetClose').onclick = () => document.body.classList.remove('sheet-open');
+  $('#sheetDone').onclick = () => { document.body.classList.remove('sheet-open'); $('#btnNext').click(); };
+
+  /* ---------- geometrija kadra (A4 strana) ----------
+     Isti model crta sličicu, editor i listanje knjige. */
+  const defaultCrop = () => ({ cx: 0.5, cy: 0.5, rot: 0, frame: false });
+  function geom(p) {
+    const c = p.crop, sw = c.rot % 180 !== 0, m = c.frame ? FRAME : 0;
+    const bw = 1 - 2 * m, bh = FH - 2 * m;
+    const W = sw ? p.h : p.w, H = sw ? p.w : p.h;
+    const s = Math.max(bw / W, bh / H);
+    return { s, iw: W * s, ih: H * s, bw, bh };
+  }
+  function clampCrop(p) {
+    const g = geom(p), c = p.crop;
+    const mx = g.iw > g.bw ? (g.iw - g.bw) / 2 / g.iw : 0;
+    const my = g.ih > g.bh ? (g.ih - g.bh) / 2 / g.ih : 0;
+    c.cx = clamp(c.cx, 0.5 - mx, 0.5 + mx);
+    c.cy = clamp(c.cy, 0.5 - my, 0.5 + my);
+  }
+  function place(img, p) {
+    const g = geom(p), c = p.crop;
+    const dx = (0.5 - c.cx) * g.iw, dy = (0.5 - c.cy) * g.ih;
+    img.style.width = p.w * g.s * 100 + '%';
+    img.style.left = 50 + dx * 100 + '%';
+    img.style.top = 50 + (dy / FH) * 100 + '%';
+    img.style.transform = `translate(-50%,-50%) rotate(${c.rot}deg)`;
+    // beli okvir je sloj preko fotografije, isti u sličici, editoru i listanju
+    const host = img.parentElement;
+    if (!host) return;
+    let wf = host.querySelector('.wf');
+    if (c.frame && !wf) { wf = document.createElement('i'); wf.className = 'wf'; img.after(wf); }
+    if (!c.frame && wf) wf.remove();
+    if (c.frame) {
+      const v = (FRAME / FH) * 100, h = FRAME * 100;
+      wf.style.backgroundSize = `100% ${v}%, 100% ${v}%, ${h}% 100%, ${h}% 100%`;
+    }
+  }
+
+  /* ---------- 3. Fotografije ---------- */
+  const isHeic = (f) => /image\/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name);
+  const isImage = (f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|hei[cf])$/i.test(f.name);
+  let heicLoad;
+  function heicToJpeg(file) {
+    heicLoad = heicLoad || new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    return heicLoad.then(() => window.HeicTo({ blob: file, type: 'image/jpeg', quality: 0.92 }));
+  }
+
+  // OffscreenCanvas ne usporava kad je tab u pozadini, pa učitavanje teče i dok korisnik radi nešto drugo.
+  function makeCanvas(w, h) {
+    if (window.OffscreenCanvas) return new OffscreenCanvas(w, h);
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    return c;
+  }
+  const canvasBlob = (c, q) => (c.convertToBlob ? c.convertToBlob({ type: 'image/jpeg', quality: q }) : new Promise((r) => c.toBlob(r, 'image/jpeg', q)));
+
+  const queue = [];
+  let running = 0;
+  function pump() {
+    while (running < 3 && queue.length) {
+      const job = queue.shift();
+      running++;
+      loadPhoto(job).finally(() => { running--; pump(); });
+    }
+  }
+  async function loadPhoto(p) {
+    try {
+      const blob = isHeic(p.file) ? await heicToJpeg(p.file) : p.file;
+      const bmp = await createImageBitmap(blob);
+      p.w = bmp.width; p.h = bmp.height;
+      const sc = Math.min(1, 560 / Math.max(p.w, p.h));
+      const cv = makeCanvas(Math.round(p.w * sc), Math.round(p.h * sc));
+      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      if (bmp.close) bmp.close();
+      const t = await canvasBlob(cv, 0.82);
+      p.thumb = URL.createObjectURL(t);
+      p.url = URL.createObjectURL(blob);
+      p.status = 'ready';
+    } catch (e) {
+      p.status = 'error';
+    }
+    updateSlot(p);
+    updateMeter();
+    if (p.onReady) p.onReady();
+    if (p.status === 'ready') kickBg();
+  }
+
+  function addFiles(list) {
+    const b = book();
+    const files = [...list];
+    const valid = files.filter(isImage);
+    const notImg = files.length - valid.length;
+    const known = new Set(b.photos.map((p) => p.name + '|' + p.size));
+    let dup = 0, over = 0, added = 0;
+    valid.forEach((f) => {
+      const k = f.name + '|' + f.size;
+      if (known.has(k)) { dup++; return; }
+      if (b.photos.length >= MAX) { over++; return; }
+      known.add(k);
+      const p = { id: uid(), file: f, name: f.name, size: f.size, lm: f.lastModified, status: 'loading', crop: defaultCrop(), w: 0, h: 0 };
+      b.photos.push(p);
+      queue.push(p);
+      added++;
+    });
+    renderPhotos();
+    pump();
+    const msg = [];
+    if (dup) msg.push(`Preskočeno ${dup} duplikata`);
+    if (over) msg.push(`Maksimum je ${MAX}, ${over} nije dodato`);
+    if (notImg) msg.push(`${notImg} nisu fotografije`);
+    if (msg.length) toast(msg.join('. ') + '.');
+    else if (added && b.photos.length < MIN) toast(`Dodato ${added}. Još ${MIN - b.photos.length} do minimuma.`);
+  }
+
+  function pageInner(p) {
+    if (p.status === 'error') return '<div class="fail">Ne možemo da otvorimo ovu fotografiju</div>';
+    if (p.status === 'loading') return '<div class="shimmer"></div>';
+    return `<img src="${p.thumb}" alt="" draggable="false">`;
+  }
+  function slotHTML(p, i) {
+    return `<div class="slot ph" data-id="${p.id}" tabindex="0" role="button" aria-label="Fotografija ${i + 1}, otvori uređivanje">
+      <div class="page">${pageInner(p)}</div>
+      <span class="num">${i + 1}</span>
+      <button class="x" type="button" aria-label="Ukloni fotografiju ${i + 1}">×</button>
+    </div>`;
+  }
+  const blank = '<div class="slot blank"><div class="page">prazna stranica</div></div>';
+
+  let sortable, lastDrag = 0;
+  // Veoma brz potez može da ostavi plutajuću kopiju fotografije; čistimo je čim se pusti miš.
+  const sweepGhost = () => setTimeout(() => {
+    if (!$('.sortable-chosen')) $$('.sortable-fallback').forEach((e) => e.remove());
+  }, 120);
+  window.addEventListener('pointerup', sweepGhost);
+  window.addEventListener('mouseup', sweepGhost);
+
+  function renderPhotos() {
+    const b = book(), n = b.photos.length;
+    $('#sideCover').innerHTML = coverOf(b);
+    $('#boardTitle').textContent = `Fotografije: ${b.title || b.dest || 'tvoja knjiga'}`;
+    $('#drop').hidden = n > 0;
+    $('#spreads').hidden = n === 0;
+    $('#btnAdd').hidden = n === 0;
+    const more = $('#addMore');
+    more.hidden = n === 0 || n >= MAX;
+    more.textContent = n < MIN ? `+ Dodaj još ${MIN - n} ${stranica(MIN - n)} do minimuma` : n % STEP ? `+ Dodaj još ${STEP - (n % STEP)}` : '+ Dodaj još stranica, po 4';
+    if (n) {
+      $('#spreads').innerHTML = blank + b.photos.map(slotHTML).join('') + (n % 2 === 0 ? blank : '');
+      b.photos.forEach((p) => {
+        if (p.status !== 'ready') return;
+        const img = $(`[data-id="${p.id}"] img`);
+        if (img) place(img, p);
+      });
+      if (!sortable && window.Sortable) {
+        sortable = Sortable.create($('#spreads'), {
+          draggable: '.ph', animation: 160, ghostClass: 'sortable-ghost', dragClass: 'sortable-drag',
+          delay: 170, delayOnTouchOnly: true, touchStartThreshold: 5, forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4,
+          onEnd(evt) {
+            lastDrag = Date.now();
+            sweepGhost();
+            if (evt.oldIndex === evt.newIndex) return;
+            const order = $$('#spreads .ph').map((e) => e.dataset.id);
+            const bk = book();
+            bk.photos.sort((a, c) => order.indexOf(a.id) - order.indexOf(c.id));
+            renderPhotos();
+          },
+        });
+      }
+    } else {
+      $('#spreads').innerHTML = '';
+    }
+    updateMeter();
+  }
+  function updateSlot(p) {
+    if (state.step !== 3) return;
+    const el = $(`[data-id="${p.id}"]`);
+    if (!el) return;
+    const i = book().photos.indexOf(p);
+    if (i < 0) return;
+    el.outerHTML = slotHTML(p, i);
+    const img = $(`[data-id="${p.id}"] img`);
+    if (img) place(img, p);
+  }
+  function updateMeter() {
+    if (state.step !== 3) return;
+    const b = book(), n = countOf(b);
+    const up = Math.min(MAX, Math.ceil(n / STEP) * STEP);
+    const target = n <= b.plan ? b.plan : up;
+    const good = goodCount(n);
+    $('#mCount').textContent = n;
+    $('#mLabel').textContent = good && n >= target ? stranica(n) : `od ${target}`;
+    const bar = $('#mBar');
+    bar.style.width = Math.min(100, (n / target) * 100) + '%';
+    bar.classList.toggle('full', good);
+    const loading = b.photos.filter((p) => p.status === 'loading').length;
+    const fail = b.photos.filter((p) => p.status === 'error').length;
+    const rows = [];
+    if (loading) rows.push(['', `Učitavanje: još ${loading}`]);
+    if (n < MIN) rows.push(['', `Još ${MIN - n} do minimuma od ${MIN}`]);
+    else if (n % STEP) rows.push(['warn', `Broj mora biti deljiv sa 4. Dodaj još ${STEP - (n % STEP)} ili ukloni ${n % STEP}.`]);
+    else if (!loading) {
+      rows.push(['ok', 'Knjiga je spremna']);
+    }
+    if (fail) rows.push(['warn', `${fail} nije moguće otvoriti, ukloni ih`]);
+    $('#status').innerHTML = rows.map(([c, t]) => `<li class="${c}">${esc(t)}</li>`).join('');
+    const shownN = n < MIN ? 0 : up;
+    $('#mPrice').textContent = shownN ? money(priceFor(shownN)) : `od ${money(TIERS[0][1])}`;
+    $('#sideBack').innerHTML = backOf(b);
+    const ready = b.photos.some((p) => p.status === 'ready');
+    $('#btnPreview').disabled = !ready;
+    $('#btnSort').disabled = n < 2;
+    renderFoot();
+  }
+  function removePhoto(id) {
+    const b = book(), i = b.photos.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    const [p] = b.photos.splice(i, 1);
+    renderPhotos();
+    toast('Fotografija je uklonjena.', () => { b.photos.splice(i, 0, p); if (book() === b && state.step === 3) renderPhotos(); });
+  }
+
+  const pick = () => $('#file').click();
+  $('#btnPick').addEventListener('click', (e) => { e.stopPropagation(); pick(); });
+  $('#btnAdd').onclick = $('#addMore').onclick = pick;
+  $('#drop').addEventListener('click', pick);
+  $('#drop').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  $('#file').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+  $('#btnSort').onclick = () => {
+    const b = book(), prev = b.photos.slice();
+    b.photos.sort((x, y) => x.lm - y.lm);
+    renderPhotos();
+    toast('Poređano od najstarije ka najnovijoj.', () => { b.photos = prev; renderPhotos(); });
+  };
+  $('#spreads').addEventListener('click', (e) => {
+    const x = e.target.closest('.x');
+    const slot = e.target.closest('.ph');
+    if (!slot) return;
+    if (x) { removePhoto(slot.dataset.id); return; }
+    if (Date.now() - lastDrag > 250) openEditor(slot.dataset.id);
+  });
+  $('#spreads').addEventListener('keydown', (e) => {
+    const slot = e.target.closest('.ph');
+    if (slot && e.target === slot && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEditor(slot.dataset.id); }
+  });
+
+  // prevlačenje fajlova bilo gde na ekranu sa fotografijama
+  let dragDepth = 0;
+  const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  window.addEventListener('dragenter', (e) => { if (state.step === 3 && hasFiles(e)) { dragDepth++; $('#veil').hidden = false; } });
+  window.addEventListener('dragleave', (e) => { if (state.step === 3 && hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; $('#veil').hidden = true; } });
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0; $('#veil').hidden = true;
+    if (state.step === 3) addFiles(e.dataTransfer.files);
+  });
+
+  /* ---------- Uređivanje ---------- */
+  let edP = null;
+  const readyPhotos = () => book().photos.filter((p) => p.status === 'ready');
+  function openEditor(id) {
+    const p = book().photos.find((x) => x.id === id);
+    if (!p || p.status !== 'ready') return;
+    edP = p;
+    $('#editor').hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+    sizeFrame();
+    renderEditor();
+  }
+  function closeEditor() {
+    $('#editor').hidden = true;
+    document.documentElement.style.overflow = '';
+    const id = edP && edP.id;
+    edP = null;
+    renderPhotos();
+    const s = id && $(`[data-id="${id}"]`);
+    if (s) s.focus({ preventScroll: false });
+  }
+  function sizeFrame() {
+    const st = $('#edStage').getBoundingClientRect();
+    const narrow = matchMedia('(max-width:820px)').matches;
+    const maxW = st.width - (narrow ? 96 : 140), maxH = st.height - (narrow ? 34 : 38);
+    let h = maxH, w = h / FH;
+    if (w > maxW) { w = maxW; h = w * FH; }
+    const fr = $('#edFrame');
+    fr.style.width = Math.round(w) + 'px';
+    fr.style.height = Math.round(h) + 'px';
+  }
+  function renderEditor() {
+    const p = edP, list = readyPhotos(), i = list.indexOf(p);
+    const img = $('#edImg');
+    if (img.dataset.src !== p.url) { img.src = p.url; img.dataset.src = p.url; }
+    clampCrop(p);
+    place(img, p);
+    $('#edPos').textContent = `Stranica ${book().photos.indexOf(p) + 1} od ${book().photos.length}`;
+    $('#edFrameT').checked = p.crop.frame;
+    $('#edPrev').setAttribute('aria-disabled', i <= 0);
+    $('#edNext').setAttribute('aria-disabled', i >= list.length - 1);
+  }
+  function step(d) {
+    const list = readyPhotos(), i = list.indexOf(edP) + d;
+    if (i < 0 || i >= list.length) return;
+    edP = list[i];
+    renderEditor();
+  }
+  $('#edPrev').onclick = () => step(-1);
+  $('#edNext').onclick = () => step(1);
+  $('#edClose').onclick = $('#edDone').onclick = closeEditor;
+  $('#edFrameT').addEventListener('change', (e) => { edP.crop.frame = e.target.checked; clampCrop(edP); place($('#edImg'), edP); });
+  $('#edRot').onclick = () => { const c = edP.crop; c.rot = (c.rot + 90) % 360; c.cx = c.cy = 0.5; renderEditor(); };
+  $('#edReset').onclick = () => { edP.crop = defaultCrop(); renderEditor(); };
+  $('#edRemove').onclick = () => {
+    const list = readyPhotos(), i = list.indexOf(edP);
+    const id = edP.id, nextP = list[i + 1] || list[i - 1];
+    if (!nextP) { closeEditor(); removePhoto(id); return; }
+    edP = nextP;
+    removePhoto(id);
+    renderEditor();
+  };
+  // pomeranje kadra prstom ili mišem
+  (function () {
+    const fr = $('#edFrame');
+    let drag = null;
+    fr.addEventListener('pointerdown', (e) => {
+      drag = { x: e.clientX, y: e.clientY, cx: edP.crop.cx, cy: edP.crop.cy };
+      fr.setPointerCapture(e.pointerId);
+      fr.classList.add('dragging');
+    });
+    fr.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const g = geom(edP), w = fr.clientWidth;
+      edP.crop.cx = drag.cx - (e.clientX - drag.x) / (w * g.iw);
+      edP.crop.cy = drag.cy - (e.clientY - drag.y) / (w * g.ih);
+      clampCrop(edP);
+      place($('#edImg'), edP);
+    });
+    const end = () => { drag = null; fr.classList.remove('dragging'); };
+    fr.addEventListener('pointerup', end);
+    fr.addEventListener('pointercancel', end);
+  })();
+
+  /* ---------- Zadnja korica: uređivanje ---------- */
+  let beSlot = 0;
+  function openBack() {
+    beSlot = 0;
+    const b = book();
+    $('#beTitle').value = backTitle(b);
+    $('#beSub').value = backSub(b);
+    $('#backEd').hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+    renderBack();
+    sizeBack();
+  }
+  function closeBack() {
+    $('#backEd').hidden = true;
+    document.documentElement.style.overflow = '';
+    if (state.step === 3) renderPhotos();
+    if (state.step === 4) renderSend();
+  }
+  // korica uvek staje u prostor koji ostane iznad/levo od panela, i kad se panel promeni
+  new ResizeObserver(() => { if (!$('#backEd').hidden) sizeBack(); }).observe($('#beStage'));
+  function sizeBack() {
+    const st = $('#beStage').getBoundingClientRect();
+    if (!st.height || !st.width) return;
+    let h = st.height - 36, w = h / FH;
+    if (w > st.width - 32) { w = st.width - 32; h = w * FH; }
+    const el = $('#beBook');
+    el.style.width = Math.round(w) + 'px';
+    el.style.height = Math.round(h) + 'px';
+  }
+  function renderBack() {
+    const b = book(), slots = BACK_SLOTS[b.back.layout];
+    const pool = [...(b.back.extra || []).filter((p) => p.status === 'ready'), ...readyOf(b)];
+    $('#beBook').innerHTML = backOf(b) + slots.map(([x, y, w, h], i) => `<button type="button" class="be-slot ${i === beSlot ? 'on' : ''}" data-s="${i}" aria-label="Mesto ${i + 1}" style="left:${(x / 420) * 100}%;top:${(y / 594) * 100}%;width:${(w / 420) * 100}%;height:${(h / 594) * 100}%"></button>`).join('');
+    $$('#beLayout button').forEach((x) => x.classList.toggle('on', x.dataset.l === b.back.layout));
+    $('#beText').hidden = b.back.layout === 'none';
+    $('#bePickWrap').hidden = !slots.length;
+    $('#beHelp').textContent = 'Klikni na mesto na korici, pa izaberi fotografiju.';
+    const current = slots.map((_, i) => backPhoto(b, i)).filter(Boolean).map((p) => p.id);
+    $('#bePick').innerHTML = '<button type="button" class="be-add" aria-label="Dodaj drugu sliku">+</button>' + pool.map((p) => `<button type="button" data-p="${p.id}" class="${current.includes(p.id) ? 'on' : ''}" aria-label="Izaberi fotografiju" style="background-image:url('${p.thumb}')"></button>`).join('');
+  }
+  $('#btnBackCover').onclick = openBack;
+  $('#beClose').onclick = $('#beDone').onclick = closeBack;
+  $('#beLayout').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-l]');
+    if (!t) return;
+    book().back.layout = t.dataset.l;
+    book().back.picks = [];
+    beSlot = 0;
+    renderBack();
+  });
+  $('#beBook').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-s]');
+    if (t) { beSlot = +t.dataset.s; renderBack(); }
+  });
+  $('#bePick').addEventListener('click', (e) => {
+    if (e.target.closest('.be-add')) { $('#beFile').click(); return; }
+    const t = e.target.closest('[data-p]');
+    if (!t) return;
+    const b = book(), n = BACK_SLOTS[b.back.layout].length;
+    for (let i = 0; i < n; i++) { const p = backPhoto(b, i); b.back.picks[i] = p ? p.id : null; }
+    b.back.picks[beSlot] = t.dataset.p;
+    beSlot = (beSlot + 1) % n;
+    renderBack();
+  });
+  $('#beFile').addEventListener('change', (e) => {
+    const b = book(), slot = beSlot;
+    [...e.target.files].filter(isImage).forEach((f, k) => {
+      const p = { id: uid(), file: f, name: f.name, size: f.size, lm: f.lastModified, status: 'loading', crop: defaultCrop(), w: 0, h: 0 };
+      p.onReady = () => {
+        if (p.status === 'ready' && k === 0) b.back.picks[slot] = p.id;
+        if (!$('#backEd').hidden) renderBack();
+      };
+      (b.back.extra = b.back.extra || []).push(p);
+      queue.push(p);
+    });
+    pump();
+    e.target.value = '';
+  });
+  $('#beTitle').addEventListener('input', (e) => { book().back.title = e.target.value; renderBack(); });
+  $('#beSub').addEventListener('input', (e) => { book().back.sub = e.target.value; renderBack(); });
+
+  /* ---------- Listanje knjige ---------- */
+  let spreadsData = [], sp = 0, flipping = false;
+  function buildSpreads() {
+    const b = book(), ph = b.photos.filter((p) => p.status === 'ready');
+    const out = [[null, { t: 'cover' }]];
+    const pages = [{ t: 'blank' }, ...ph.map((p, i) => ({ t: 'photo', p, n: i + 1 }))];
+    if (ph.length % 2 === 0) pages.push({ t: 'blank' });
+    for (let i = 0; i < pages.length; i += 2) out.push([pages[i], pages[i + 1]]);
+    out.push([{ t: 'back' }, null]);
+    return out;
+  }
+  function pageNode(item, side) {
+    const d = document.createElement('div');
+    d.className = `fp ${side}-page`;
+    if (!item) { d.style.visibility = 'hidden'; return d; }
+    const b = book();
+    if (item.t === 'cover') { d.innerHTML = coverOf(b); d.className = 'fp'; d.style.borderRadius = '3px 6px 6px 3px'; }
+    if (item.t === 'back') { d.innerHTML = backOf(b); d.className = 'fp'; d.style.borderRadius = '6px 3px 3px 6px'; }
+    if (item.t === 'photo') {
+      const img = new Image();
+      img.alt = ''; img.src = item.p.url;
+      d.appendChild(img);
+      place(img, item.p);
+      const n = document.createElement('span');
+      n.className = 'fp-num'; n.textContent = item.n;
+      d.appendChild(n);
+    }
+    return d;
+  }
+  function sizeBook() {
+    const narrow = matchMedia('(max-width:820px)').matches;
+    const vh = innerHeight - (narrow ? 210 : 130);
+    const vw = innerWidth - (narrow ? 16 : 180);
+    let ph = vh, pw = ph / FH;
+    if (pw * 2 > vw) { pw = vw / 2; ph = pw * FH; }
+    const fb = $('#fb');
+    fb.style.width = Math.floor(pw * 2) + 'px';
+    fb.style.height = Math.floor(ph) + 'px';
+  }
+  function drawSpread() {
+    const [l, r] = spreadsData[sp];
+    $('#fbL').replaceChildren(pageNode(l, 'left'));
+    $('#fbR').replaceChildren(pageNode(r, 'right'));
+    positionBook();
+    updateFlipUi();
+  }
+  function positionBook() {
+    const [l, r] = spreadsData[sp];
+    $('#fb').style.transform = !l ? 'translateX(-25%)' : !r ? 'translateX(25%)' : 'none';
+  }
+  function updateFlipUi() {
+    const [l, r] = spreadsData[sp];
+    let t = '';
+    if (r && r.t === 'cover') t = 'Prednja korica';
+    else if (l && l.t === 'back') t = 'Zadnja korica';
+    else {
+      const a = l && l.n, c = r && r.n;
+      t = a && c ? `Stranice ${a} i ${c}` : `Stranica ${a || c}`;
+    }
+    $('#flipPos').textContent = t;
+    $('#flipPrev').setAttribute('aria-disabled', sp <= 0);
+    $('#flipNext').setAttribute('aria-disabled', sp >= spreadsData.length - 1);
+  }
+  function turn(d) {
+    const to = sp + d;
+    if (flipping || to < 0 || to >= spreadsData.length) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { sp = to; drawSpread(); return; }
+    flipping = true;
+    const [cl, cr] = spreadsData[sp], [nl, nr] = spreadsData[to];
+    const leaf = document.createElement('div');
+    leaf.className = 'leaf';
+    const fr = document.createElement('div'), bk = document.createElement('div');
+    bk.className = 'bk';
+    fr.appendChild(pageNode(d > 0 ? cr : nr, 'right'));
+    bk.appendChild(pageNode(d > 0 ? nl : cl, 'left'));
+    leaf.append(fr, bk);
+    const fb = $('#fb');
+    if (d > 0) {
+      $('#fbR').replaceChildren(pageNode(nr, 'right'));
+      leaf.style.transform = 'rotateY(0deg)';
+    } else {
+      $('#fbL').replaceChildren(pageNode(nl, 'left'));
+      leaf.style.transform = 'rotateY(-180deg)';
+    }
+    fb.appendChild(leaf);
+    sp = to;
+    positionBook();
+    updateFlipUi();
+    leaf.getBoundingClientRect();
+    leaf.style.transform = d > 0 ? 'rotateY(-180deg)' : 'rotateY(0deg)';
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (d > 0) $('#fbL').replaceChildren(pageNode(nl, 'left'));
+      else $('#fbR').replaceChildren(pageNode(nr, 'right'));
+      leaf.remove();
+      flipping = false;
+    };
+    leaf.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 800);
+  }
+  function openFlip() {
+    spreadsData = buildSpreads();
+    sp = 0;
+    $('#flip').hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+    sizeBook();
+    drawSpread();
+  }
+  function closeFlip() { $('#flip').hidden = true; document.documentElement.style.overflow = ''; }
+  $('#btnPreview').onclick = openFlip;
+  $('#flipClose').onclick = closeFlip;
+  $('#flipPrev').onclick = () => turn(-1);
+  $('#flipNext').onclick = () => turn(1);
+  $('#fb').addEventListener('click', (e) => { const x = e.clientX - $('#fb').getBoundingClientRect().left; turn(x < $('#fb').offsetWidth / 2 ? -1 : 1); });
+
+  window.addEventListener('keydown', (e) => {
+    if (!$('#backEd').hidden) {
+      if (e.key === 'Escape') closeBack();
+    } else if (!$('#editor').hidden) {
+      if (e.key === 'Escape') closeEditor();
+      if (e.key === 'ArrowLeft' && e.target.type !== 'range') step(-1);
+      if (e.key === 'ArrowRight' && e.target.type !== 'range') step(1);
+    } else if (!$('#flip').hidden) {
+      if (e.key === 'Escape') closeFlip();
+      if (e.key === 'ArrowLeft') turn(-1);
+      if (e.key === 'ArrowRight') turn(1);
+    }
+  });
+  window.addEventListener('resize', () => {
+    if (!$('#editor').hidden) { sizeFrame(); place($('#edImg'), edP); }
+    if (!$('#flip').hidden) sizeBook();
+    if (!$('#backEd').hidden) sizeBack();
+  });
+
+  /* ---------- 4. Slanje ---------- */
+  function bookProblem(b) {
+    if (!b.coverId) return 'Izaberi korice.';
+    return countProblem(b.photos.filter((p) => p.status === 'ready').length);
+  }
+  function renderSend() {
+    warmPrint();
+    $('#fName').value = state.name;
+    $('#fIg').value = state.ig;
+    $('#fCity').value = state.city;
+    $('#fAddr').value = state.addr;
+    $('#fPhone').value = state.phone;
+    $$('input[name=ship]').forEach((r) => (r.checked = r.value === state.ship));
+    $('#addrFields').hidden = state.ship === 'pickup';
+    $('#orders').innerHTML = state.books.map((b, i) => {
+      const bad = bookProblem(b), c = cover(b), n = countOf(b);
+      const ready = b.photos.filter((p) => p.status === 'ready');
+      const strip = ready.slice(0, 6).map((p) => `<span class="ot"><img data-b="${i}" data-p="${p.id}" src="${p.thumb}" alt=""></span>`).join('');
+      const rest = ready.length - 6;
+      return `<article class="order" style="--c:${(b.bg || (c || CUSTOM).bg)}">
+        <div class="order-cover">${coverOf(b)}</div>
+        <div class="order-body">
+          <div class="order-top">
+            <div><b>${esc(b.title || b.dest || 'Knjiga ' + (i + 1))}</b>
+              <span class="${bad ? 'bad' : ''}">${bad || `A4, tvrde korice, ${n} ${stranica(n)}${c && c.id === 'custom' ? ', dizajn po dogovoru' : ''}`}</span></div>
+            ${bad ? '' : `<strong class="order-price">${money(priceFor(n))}</strong>`}
+          </div>
+          ${ready.length ? `<div class="order-strip">${strip}${rest > 0 ? `<span class="ot more">+${rest}</span>` : ''}</div>` : ''}
+          ${state.books.length > 1 ? `<button class="order-x" type="button" data-del="${i}" aria-label="Ukloni knjigu">×</button>` : ''}
+        </div></article>`;
+    }).join('');
+    $$('#orders .ot img').forEach((img) => {
+      const p = state.books[+img.dataset.b].photos.find((x) => x.id === img.dataset.p);
+      if (p) place(img, p);
+    });
+    renderReview();
+  }
+  function renderReview() {
+    const b = state.books.find((x) => x.photos.some((p) => p.status === 'ready')) || state.books[0];
+    const ready = b.photos.filter((p) => p.status === 'ready');
+    const pages = ready.length > 2 ? [ready[1], ready[2]] : [];
+    const covers = state.books.slice(0, 3);
+    const mid = (covers.length - 1) / 2;
+    $('#review').innerHTML = `<div class="rv-spread">${pages.length ? pages.map((p, i) => `<div class="rv-page ${i ? 'r' : 'l'}"><img data-p="${p.id}" src="${p.url}" alt=""></div>`).join('') : '<div class="rv-page l"></div><div class="rv-page r"></div>'}</div>
+      <div class="rv-covers">${covers.map((x, i) => `<div class="rv-cover" style="transform:rotate(${6 + (i - mid) * 7}deg) translateX(${(i - mid) * 22}%);z-index:${i + 1}">${coverOf(x)}</div>`).join('')}</div>`;
+    pages.forEach((p) => place($(`#review img[data-p="${p.id}"]`), p));
+    $('#btnReview').hidden = !ready.length;
+    $('#btnReview').onclick = () => { state.active = state.books.indexOf(b); openFlip(); };
+  }
+  function renderShelf(sel) {
+    const list = state.books.slice(0, 5), mid = (list.length - 1) / 2;
+    $(sel).innerHTML = list.map((b, i) => {
+      const off = i - mid, rot = list.length === 1 ? -5 : off * 9 - 2;
+      return `<div class="sh" style="transform:translate(calc(-50% + ${off * 18}%),calc(-50% + ${Math.abs(off) * 3}%)) rotate(${rot}deg);z-index:${i + 1}">${coverOf(b)}</div>`;
+    }).join('');
+  }
+  $('#orders').addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-edit]'), del = e.target.closest('[data-del]'), fl = e.target.closest('[data-flip]');
+    if (fl) { state.active = +fl.dataset.flip; openFlip(); return; }
+    const bc = e.target.closest('[data-backc]');
+    if (bc) { state.active = +bc.dataset.backc; openBack(); return; }
+    if (ed) { state.active = +ed.dataset.i; goTo(+ed.dataset.edit, true); }
+    if (del) {
+      const i = +del.dataset.del, [b] = state.books.splice(i, 1);
+      state.active = Math.min(state.active, state.books.length - 1);
+      renderSend(); renderFoot();
+      toast(`Knjiga je uklonjena.`, () => { state.books.splice(i, 0, b); renderSend(); renderFoot(); });
+    }
+  });
+  $('#addBook').onclick = () => {
+    state.books.push(newBook());
+    state.active = state.books.length - 1;
+    const b = book();
+    b.autoCover = false;
+    goTo(2, true);
+    toast(`Knjiga ${state.books.length}: izaberi korice.`);
+  };
+  [['#fCity', 'city', 'City'], ['#fAddr', 'addr', 'Addr'], ['#fPhone', 'phone', 'Phone']].forEach(([s, k, err]) => {
+    $(s).addEventListener('input', (e) => { state[k] = e.target.value; store.save(); if (err && e.target.classList.contains('invalid')) setErr(err, '', e.target); });
+  });
+  $$('input[name=ship]').forEach((r) => r.addEventListener('change', () => { state.ship = r.value; renderSend(); }));
+
+  function validateSend() {
+    const post = state.ship === 'post';
+    const cityOK = !post || state.city.trim().length > 1;
+    const addrOK = !post || state.addr.trim().length > 3;
+    const phoneOK = state.phone.replace(/\D/g, '').length >= 8;
+    const nameOK = state.name.trim().length > 1, igOK = state.ig.trim().length > 0;
+    setErr('Name', nameOK ? '' : 'Unesi ime i prezime.', $('#fName'));
+    setErr('Ig', igOK ? '' : 'Unesi Instagram profil, tu ti šaljemo predlog korica.', $('#fIg'));
+    setErr('City', cityOK ? '' : 'Unesi grad.', $('#fCity'));
+    setErr('Addr', addrOK ? '' : 'Unesi ulicu i broj.', $('#fAddr'));
+    setErr('Phone', phoneOK ? '' : 'Unesi broj telefona, da te kurir može pozvati.', $('#fPhone'));
+    const first = !nameOK ? '#fName' : !igOK ? '#fIg' : !cityOK ? '#fCity' : !addrOK ? '#fAddr' : !phoneOK ? '#fPhone' : null;
+    if (first) $(first).focus();
+    const badBook = state.books.findIndex(bookProblem);
+    if (badBook >= 0) toast(`Knjiga ${badBook + 1}: ${bookProblem(state.books[badBook])}`);
+    return !first && badBook < 0;
+  }
+
+  /* ---------- Slanje: isti Apps Script i Google Drive kao na traveltails.rs ----------
+     Fotografije idu DIREKTNO u Google Drive kao originalni fajlovi (bez ikakve kompresije),
+     redom 001, 002…; Apps Script samo otvara porudžbinu, daje adrese za slanje i šalje mejl. */
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyeKz0KUI9LSTGANx2ULacVZhpixAWl0i8WJuadPaeKuDgdgS5oWZAO85ql-Zza7g_QMA/exec';
+  async function callServer(fn, args, timeoutMs = 30000) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    try {
+      // text/plain da ostane "simple request" (Apps Script ne podržava CORS preflight)
+      const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: fn, params: args }), signal: ctl.signal });
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch (e) { throw new Error('Server je privremeno preopterećen. Pokušaj ponovo.'); }
+      if (!json || !json.ok) throw new Error((json && json.error) || 'Nepoznata greška servera.');
+      return json.result;
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error('Server predugo ne odgovara. Pokušaj ponovo.');
+      throw err;
+    } finally { clearTimeout(timer); }
+  }
+  async function callRetry(fn, args, timeoutMs, retries = 2, delay = 1500) {
+    try { return await callServer(fn, args, timeoutMs); } catch (err) {
+      if (retries <= 0) throw err;
+      await sleep(delay);
+      return callRetry(fn, args, timeoutMs, retries - 1, delay * 1.4);
+    }
+  }
+  function putFile(url, blob, mime, onBytes) {
+    return new Promise((ok, bad) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', url, true);
+      xhr.setRequestHeader('Content-Type', mime || 'application/octet-stream');
+      let stall;
+      const arm = () => { clearTimeout(stall); stall = setTimeout(() => { xhr.abort(); bad(new Error('Veza je zastala pri slanju.')); }, 60000); };
+      arm();
+      xhr.upload.onprogress = (e) => { arm(); onBytes(e.loaded); };
+      xhr.onload = () => { clearTimeout(stall); if (xhr.status >= 200 && xhr.status < 300) { onBytes(blob.size); ok(); } else bad(new Error('Slanje nije uspelo (kod ' + xhr.status + ').')); };
+      xhr.onerror = () => { clearTimeout(stall); bad(new Error('Mrežna greška pri slanju.')); };
+      xhr.send(blob);
+    });
+  }
+  async function putRetry(url, blob, mime, onBytes, retries = 2, delay = 1500) {
+    try { return await putFile(url, blob, mime, onBytes); } catch (err) {
+      if (retries <= 0) throw err;
+      await sleep(delay);
+      return putRetry(url, blob, mime, onBytes, retries - 1, delay * 1.4);
+    }
+  }
+  // items: [{ blob, filename, mimeType }] -> u Drive folder, po 5 istovremeno
+  async function uploadList(folderId, items, onBytes) {
+    const urls = await callRetry('getUploadUrls', [folderId, items.map(({ filename, mimeType }) => ({ filename, mimeType })), location.origin], 60000);
+    let next = 0;
+    const worker = async () => {
+      while (next < items.length) {
+        const i = next++;
+        await putRetry(urls[i], items[i].blob, items[i].mimeType, (n) => onBytes(i, n));
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(5, items.length) }, worker));
+  }
+  const printCache = new Map();
+  const printKey = (b, i) => JSON.stringify([i, b.coverId, b.coverAs, b.title, b.sub, b.year, b.bg, b.ink, b.accent, b.spine, b.back, countOf(b)]);
+  function printFiles(b, i) {
+    const key = printKey(b, i);
+    if (!printCache.has(key)) {
+      const name = `Knjiga ${i + 1} - ${(b.title || b.dest || 'knjiga').trim()}`;
+      printCache.set(key, (async () => [
+        { blob: await png300(await frontPrint(b)), filename: `${name} - PREDNJA KORICA (A4 300dpi).png`, mimeType: 'image/png' },
+        { blob: await png300(await backPrint(b)), filename: `${name} - ZADNJA KORICA (A4 300dpi).png`, mimeType: 'image/png' },
+        { blob: await png300(await spinePrint(b)), filename: `${name} - RIKNA ${spineMM(countOf(b))}mm (300dpi).png`, mimeType: 'image/png' },
+      ])().catch((err) => { printCache.delete(key); throw err; }));
+    }
+    return printCache.get(key);
+  }
+  let warmT;
+  function warmPrint() {
+    clearTimeout(warmT);
+    // malo sačekamo da kupac završi izmenu, pa pravimo fajlove u pozadini
+    warmT = setTimeout(() => state.books.forEach((b, i) => { if (b.photos.some((p) => p.status === 'ready')) printFiles(b, i).catch(() => {}); }), 700);
+  }
+  function photoItems(b) {
+    const list = b.photos.filter((p) => p.status === 'ready');
+    const pad = Math.max(3, String(list.length).length);
+    return list.map((p, i) => {
+      const m = (p.file.name || '').match(/\.([a-z0-9]+)$/i);
+      const ext = m ? '.' + m[1].toLowerCase() : p.file.type === 'image/png' ? '.png' : '.jpg';
+      return { blob: p.file, filename: String(i + 1).padStart(pad, '0') + ext, mimeType: p.file.type || 'image/jpeg', p };
+    });
+  }
+  function photoNotes(b) {
+    return photoItems(b).map(({ filename, p }) => {
+      const c = p.crop || {}, notes = [];
+      if (c.rot) notes.push(`rotirana ${c.rot}°`);
+      if (c.frame) notes.push('beli okvir');
+      if (Math.abs((c.cx ?? 0.5) - 0.5) > 0.01 || Math.abs((c.cy ?? 0.5) - 0.5) > 0.01) notes.push(`isečak pomeren (centar ${Math.round((c.cx ?? 0.5) * 100)}% / ${Math.round((c.cy ?? 0.5) * 100)}%)`);
+      return notes.length ? `    ${filename}: ${notes.join(', ')}` : '';
+    }).filter(Boolean);
+  }
+  /* ---------- Slanje slika u pozadini ----------
+     Slike kreću u Drive čim ih kupac ubaci (originali, privremeno ime "_u_<šifra>").
+     Na "Pošalji" ide samo ono što još nije stiglo + korice, a Apps Script tada dodeli 001, 002…
+     po KONAČNOM redosledu sa sajta, obriše izbačene slike i pošalje mejl. */
+  const bg = { orderId: null, orderP: null, queue: [], active: 0, LANES: 6, kickT: 0 };
+  const tmpName = (p) => '_u_' + p.id + ((p.file.name || '').match(/\.[a-z0-9]+$/i) || [p.file.type === 'image/png' ? '.png' : '.jpg'])[0].toLowerCase();
+  function ensureOrder() {
+    if (!bg.orderP) bg.orderP = callRetry('startOrder', [], 30000).then((r) => (bg.orderId = r.orderFolderId)).catch((err) => { bg.orderP = null; throw err; });
+    return bg.orderP;
+  }
+  function ensureAlbum(b) {
+    if (!b.up) b.up = { folderP: null, folderId: null, recs: {} };
+    if (!b.up.folderP) {
+      b.up.folderP = ensureOrder()
+        .then((oid) => callRetry('addAlbum', [oid, (b.title || b.dest || 'Knjiga').trim()], 30000))
+        .then((r) => (b.up.folderId = r.folderId))
+        .catch((err) => { b.up.folderP = null; throw err; });
+    }
+    return b.up.folderP;
+  }
+  // nađi slike koje još nisu krenule, uzmi im adrese za slanje (u grupama) i stavi ih u red
+  async function feedBook(b) {
+    if (!b.up) b.up = { folderP: null, folderId: null, recs: {} };
+    const fresh = b.photos.filter((p) => p.status === 'ready' && !b.up.recs[p.id]);
+    if (!fresh.length) return;
+    fresh.forEach((p) => (b.up.recs[p.id] = { p, name: tmpName(p), state: 'wait', loaded: 0, size: p.file.size }));
+    try {
+      const folderId = await ensureAlbum(b);
+      const recs = fresh.map((p) => b.up.recs[p.id]);
+      const urls = await callRetry('getUploadUrls', [folderId, recs.map((r) => ({ filename: r.name, mimeType: r.p.file.type || 'image/jpeg' })), location.origin], 60000);
+      recs.forEach((r, i) => { r.url = urls[i]; r.state = 'queued'; bg.queue.push({ b, r }); });
+      pumpBg();
+    } catch (err) {
+      fresh.forEach((p) => delete b.up.recs[p.id]); // pokušaće ponovo kasnije
+    }
+  }
+  function pumpBg() {
+    while (bg.active < bg.LANES && bg.queue.length) {
+      const { b, r } = bg.queue.shift();
+      if (!b.photos.includes(r.p) || r.state !== 'queued') continue; // kupac je izbacio sliku pre slanja
+      bg.active++;
+      r.state = 'up';
+      putRetry(r.url, r.p.file, r.p.file.type || 'image/jpeg', (n) => { r.loaded = n; if (bg.onProgress) bg.onProgress(); })
+        .then(() => { r.state = 'done'; r.loaded = r.size; })
+        .catch(() => { delete b.up.recs[r.p.id]; }) // nova adresa i novi pokušaj
+        .finally(() => { bg.active--; if (bg.onProgress) bg.onProgress(); pumpBg(); });
+    }
+  }
+  function kickBg() {
+    clearTimeout(bg.kickT);
+    bg.kickT = setTimeout(() => { if (!state.sent) state.books.forEach((b) => feedBook(b)); }, 400);
+  }
+  const bookBytes = (b) => {
+    const ready = b.photos.filter((p) => p.status === 'ready');
+    const total = ready.reduce((s, p) => s + p.file.size, 0) || 1;
+    const done = ready.reduce((s, p) => { const r = b.up && b.up.recs[p.id]; return s + (r ? (r.state === 'done' ? r.size : r.loaded || 0) : 0); }, 0);
+    return { total, done, all: ready.every((p) => b.up && b.up.recs[p.id] && b.up.recs[p.id].state === 'done') };
+  };
+  async function send() {
+    if (!validateSend()) return;
+    state.sending = true;
+    const ig = '@' + state.ig.trim().replace(/^@/, '');
+    const books = state.books;
+    const rows = books.map((b, i) => `<div class="s-row"><div><span>${esc(b.title || b.dest || 'Knjiga ' + (i + 1))}</span><span id="sp${i}">0%</span></div><div class="bar"><i id="sb${i}"></i></div></div>`).join('')
+      + `<div class="s-row"><div><span>Korice za štampu i detalji</span><span id="spC">čeka</span></div><div class="bar"><i id="sbC"></i></div></div>`;
+    $('#sendRows').innerHTML = rows;
+    $('#sendErr').hidden = true;
+    $('#sending').hidden = false;
+    const show = () => books.forEach((b, i) => {
+      const { total, done } = bookBytes(b);
+      const pct = Math.min(100, Math.round((done / total) * 100));
+      $('#sb' + i).style.width = pct + '%';
+      $('#sp' + i).textContent = pct + '%';
+    });
+    bg.onProgress = show;
+    bg.LANES = 8; // na kraju punom brzinom
+    try {
+      const coversReady = Promise.all(books.map((b, i) => printFiles(b, i)));
+      const oid = await ensureOrder();
+      await Promise.all(books.map((b) => ensureAlbum(b)));
+      show();
+      // korice i detalji idu paralelno sa slikama koje još nisu stigle
+      const extras = (async () => {
+        $('#spC').textContent = 'pripremam…';
+        const files = (await coversReady).flat();
+        let details = orderText();
+        books.forEach((b, i) => { const notes = photoNotes(b); if (notes.length) details += `\nIZMENE FOTOGRAFIJA – KNJIGA ${i + 1}:\n${notes.join('\n')}\n`; });
+        files.unshift({ blob: new Blob([details], { type: 'text/plain;charset=utf-8' }), filename: 'Detalji porudzbine.txt', mimeType: 'text/plain' });
+        const urls = await callRetry('getUploadUrls', [oid, files.map(({ filename, mimeType }) => ({ filename, mimeType })), location.origin], 60000);
+        const total = files.reduce((s, f) => s + f.blob.size, 0) || 1, loaded = new Array(files.length).fill(0);
+        await Promise.all(files.map((f, k) => putRetry(urls[k], f.blob, f.mimeType, (n) => {
+          loaded[k] = n;
+          const pct = Math.min(100, Math.round((loaded.reduce((s, v) => s + v, 0) / total) * 100));
+          $('#sbC').style.width = pct + '%';
+          $('#spC').textContent = pct + '%';
+        })));
+      })();
+      // sačekaj da sve slike stignu (one koje su pale šalju se ponovo)
+      const photos = (async () => {
+        for (let round = 0; ; round++) {
+          await Promise.all(books.map((b) => feedBook(b)));
+          if (books.every((b) => bookBytes(b).all)) return;
+          if (round > 2400) throw new Error('Slanje fotografija predugo traje. Proveri internet i pokušaj ponovo.');
+          await sleep(500);
+        }
+      })();
+      await Promise.all([photos, extras]);
+      show();
+      const pickup = state.ship === 'pickup';
+      const albums = books.map((b) => ({ folderId: b.up.folderId, destination: (b.title || b.dest || 'Knjiga').trim(), files: photoItems(b).map((it) => b.up.recs[it.p.id].name) }));
+      try {
+        await callRetry('finalizeOrder', [oid, state.name.trim(), ig, albums,
+          pickup ? 'Lično preuzimanje (Novi Sad)' : state.city.trim(), pickup ? 'Lično preuzimanje' : state.addr.trim(), state.phone.trim()], 90000, 1);
+      } catch (err) {
+        // ako neka slika fali u Drive-u, pošalji je ponovo pri sledećem pokušaju
+        const m = String(err.message).match(/MISSING:(.+)/);
+        if (m) {
+          const miss = new Set(m[1].split(','));
+          books.forEach((b) => Object.values(b.up.recs).forEach((r) => { if (miss.has(r.name)) delete b.up.recs[r.p.id]; }));
+          throw new Error('Neke fotografije nisu stigle do kraja. Klikni „Pošalji ponovo“, poslaćemo samo njih.');
+        }
+        throw err;
+      }
+    } catch (err) {
+      state.sending = false;
+      bg.onProgress = null;
+      $('#sendErr').hidden = false;
+      $('#sendErrText').textContent = 'Slanje nije završeno: ' + err.message;
+      return;
+    }
+    bg.onProgress = null;
+    await sleep(250);
+    $('#sending').hidden = true;
+    state.sending = false;
+    state.sent = true;
+    const first = state.name.trim().split(/\s+/)[0];
+    $('#doneTitle').textContent = `Hvala, ${first}!`;
+    $('#doneShip').textContent = state.ship === 'pickup' ? 'Lično preuzimanje, Novi Sad' : 'Brza pošta, sutradan';
+    renderShelf('#doneShelf');
+    goTo(5, true);
+  }
+  $('#sendRetry').onclick = () => { $('#sending').hidden = true; send(); };
+  $('#sendClose').onclick = () => { $('#sending').hidden = true; };
+
+  /* ---------- Fajlovi za štampu: A4 na 300 dpi ---------- */
+  const PX_MM = 300 / 25.4;
+  // PRIVREMENO: debljina rikne dok ne stignu tačne mere od štamparije
+  const spineMM = (n) => Math.max(6, Math.round(n * 0.085 + 4));
+  const toBlob = (cv, type = 'image/png', q) => new Promise((ok) => cv.toBlob(ok, type, q));
+  // PNG dobija oznaku 300 dpi (pHYs), da ga Illustrator i štamparija otvore u pravoj veličini
+  const CRC = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = (b) => { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  async function png300(cv) {
+    const src = new Uint8Array(await (await toBlob(cv)).arrayBuffer());
+    const ppm = Math.round(300 / 0.0254);
+    const chunk = new Uint8Array(21), dv = new DataView(chunk.buffer);
+    dv.setUint32(0, 9); chunk.set([112, 72, 89, 115], 4); dv.setUint32(8, ppm); dv.setUint32(12, ppm); chunk[16] = 1;
+    dv.setUint32(17, crc32(chunk.subarray(4, 17)));
+    const at = 8 + 25; // posle IHDR
+    const out = new Uint8Array(src.length + 21);
+    out.set(src.subarray(0, at)); out.set(chunk, at); out.set(src.subarray(at), at + 21);
+    return new Blob([out], { type: 'image/png' });
+  }
+  let fontCss = null;
+  async function embedFonts() {
+    if (fontCss) return fontCss;
+    let css = await (await fetch('https://fonts.googleapis.com/css2?family=Raleway:wght@700;800;900&display=swap')).text();
+    const urls = [...new Set(css.match(/https:[^)]+/g) || [])];
+    for (const u of urls) {
+      const buf = new Uint8Array(await (await fetch(u)).arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      css = css.split(u).join('data:font/woff2;base64,' + btoa(bin));
+    }
+    return (fontCss = css);
+  }
+  // SVG (stari dizajni, zadnja korica) -> canvas, sa ugrađenim fontom
+  async function svgCanvas(svg, W, H) {
+    const css = await embedFonts();
+    const s = svg.replace(/<svg([^>]*)>/, `<svg$1 width="${W}" height="${H}"><defs><style>${css}</style></defs>`);
+    const url = URL.createObjectURL(new Blob([s], { type: 'image/svg+xml' }));
+    const img = await TTF.loadImg(url);
+    await new Promise((r) => setTimeout(r, 60));
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    cv.getContext('2d').drawImage(img, 0, 0, W, H);
+    URL.revokeObjectURL(url);
+    return cv;
+  }
+  async function photoData(p, w, h) {
+    const bmp = await createImageBitmap(isHeic(p.file) ? await heicToJpeg(p.file) : p.file);
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(w); cv.height = Math.round(h);
+    const r = Math.max(cv.width / bmp.width, cv.height / bmp.height), sw = cv.width / r, sh = cv.height / r;
+    cv.getContext('2d').drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, cv.width, cv.height);
+    return cv.toDataURL('image/jpeg', 0.95);
+  }
+  async function frontPrint(b) {
+    const c = cover(b) || CUSTOM;
+    const o = { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent };
+    return c.fig ? TTF.printCanvas(c, o) : svgCanvas(coverSVG(c, o), TTF.PW, TTF.PH);
+  }
+  async function backPrint(b) {
+    const c = cover(b) || CUSTOM, k = TTF.PW / 420;
+    const slots = await Promise.all(BACK_SLOTS[b.back.layout].map(async ([x, y, w, h], i) => {
+      const p = backPhoto(b, i);
+      return { x, y, w, h, href: p ? await photoData(p, w * k, h * k) : '' };
+    }));
+    const blank = b.back.layout === 'none';
+    const svg = backSVG(c, { bg: b.bg || c.bg, ink: b.ink || c.ink, accent: b.accent || c.accent, title: blank ? '' : backTitle(b), sub: blank ? '' : backSub(b), slots });
+    return svgCanvas(svg, TTF.PW, TTF.PH);
+  }
+  async function spinePrint(b) {
+    const c = cover(b) || CUSTOM, n = countOf(b);
+    const W = Math.round(spineMM(n) * PX_MM), H = TTF.PH, k = H / 594;
+    await document.fonts.load('800 100px Raleway');
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    g.fillStyle = b.bg || c.bg;
+    g.fillRect(0, 0, W, H);
+    const raw = spineText(b), text = c.font === 'soft' ? raw : raw.toLocaleUpperCase('sr');
+    const year = '';
+    g.save();
+    g.translate(W / 2, H);
+    g.rotate(-Math.PI / 2);
+    g.fillStyle = b.ink || c.ink;
+    g.textBaseline = 'middle';
+    let size = Math.min(W * 0.5, 24 * k);
+    g.font = `800 ${size}px Raleway`;
+    const room = (year ? 440 : 520) * k, w = g.measureText(text).width;
+    if (w > room) { size *= room / w; g.font = `800 ${size}px Raleway`; }
+    g.textAlign = 'center';
+    g.fillText(text, (year ? 332 : 297) * k, 0);
+    if (year) {
+      g.font = `800 ${Math.min(W * 0.32, 13 * k)}px Raleway`;
+      g.textAlign = 'left';
+      g.globalAlpha = 0.85;
+      g.fillText(year, 28 * k, 0);
+    }
+    g.restore();
+    return cv;
+  }
+  const slug = (s) => String(s || 'knjiga').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'dj').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'knjiga';
+  function orderText() {
+    const lines = [
+      'TRAVEL TAILS – PORUDŽBINA',
+      `Datum: ${new Date().toLocaleString('sr-RS')}`,
+      `Ime: ${state.name}`, `Instagram: @${state.ig.replace(/^@/, '')}`, `Telefon: ${state.phone}`,
+      state.ship === 'pickup' ? 'Preuzimanje: lično, Novi Sad' : `Dostava: brza pošta, ${state.city}, ${state.addr}`,
+      '',
+    ];
+    state.books.forEach((b, i) => {
+      const c = cover(b) || CUSTOM, n = countOf(b);
+      lines.push(`KNJIGA ${i + 1}: ${b.title || b.dest}`,
+        `  Format: A4, tvrde korice, ${n} ${stranica(n)}, ${money(priceFor(n))}`,
+        `  Dizajn: ${c.id === 'custom' ? 'osnovni dizajn, dogovor na Instagramu' : c.name}${c.fig ? ` (Figma okvir ${c.id.replace('f', '1112:')})` : ''}`,
+        `  Naslov: ${b.title || ''}`, `  Podnaslov: ${b.sub || ''}`, `  Godina: ${b.year || ''}`, `  Rikna: ${spineText(b)}`,
+        `  Boje: korice ${b.bg || c.bg}, naslov ${b.ink || c.ink || 'original'}, podnaslov ${b.accent || c.accent || 'original'}`,
+        `  Zadnja korica: ${{ none: 'prazna', text: 'samo tekst', one: '1 fotografija', four: '4 fotografije' }[b.back.layout]}`,
+        `  Rikna u fajlu: ${spineMM(n)} mm (privremeno, proveriti sa štamparijom)`);
+      if (b.note) lines.push(`  Napomena: ${b.note}`);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  async function buildPrintZip() {
+    const zip = new JSZip();
+    zip.file('porudzbina.txt', orderText());
+    for (let i = 0; i < state.books.length; i++) {
+      const b = state.books[i];
+      const dir = zip.folder(`knjiga-${i + 1}-${slug(b.title || b.dest)}`);
+      dir.file('prednja-korica-A4-300dpi.png', await png300(await frontPrint(b)), { compression: 'STORE' });
+      dir.file('zadnja-korica-A4-300dpi.png', await png300(await backPrint(b)), { compression: 'STORE' });
+      dir.file(`rikna-${spineMM(countOf(b))}mm-300dpi.png`, await png300(await spinePrint(b)), { compression: 'STORE' });
+      const ph = dir.folder('fotografije');
+      b.photos.filter((p) => p.status === 'ready').forEach((p, k) => {
+        const ext = (p.name.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0].toLowerCase();
+        ph.file(`${String(k + 1).padStart(3, '0')}${ext}`, p.file, { compression: 'STORE', date: new Date(p.lm || Date.now()) });
+      });
+    }
+    return zip.generateAsync({ type: 'blob' });
+  }
+  $('#btnPrint').onclick = async () => {
+    const btn = $('#btnPrint');
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = 'Pravim fajlove…';
+    try {
+      const blob = await buildPrintZip();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `travel-tails-${slug(state.name)}-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    } catch (err) {
+      console.error(err);
+      toast('Fajlovi nisu napravljeni. Pokušaj ponovo.');
+    }
+    btn.textContent = label;
+    btn.disabled = false;
+  };
+
+  /* ---------- globalno ---------- */
+  $('#btnNext').onclick = () => {
+    if (state.step === 4) send();
+    else goTo(state.step + 1);
+  };
+  $('#btnBack').onclick = () => goTo(state.step - 1, true);
+  $('#stepper').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-go]');
+    if (!b) return;
+    const n = +b.dataset.go;
+    if (n === state.step || n > state.reached) return;
+    goTo(n);
+  });
+  $('#bookTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-book]');
+    if (!b) return;
+    state.active = +b.dataset.book;
+    goTo(state.step, true);
+  });
+  $('#logo').addEventListener('click', (e) => { e.preventDefault(); goTo(1, true); });
+  $('#btnRestart').onclick = () => {
+    state.books = [newBook()]; state.active = 0; state.reached = 1; state.sent = false;
+    bg.orderId = null; bg.orderP = null; bg.queue = []; bg.LANES = 6;
+    goTo(1, true);
+  };
+  window.addEventListener('beforeunload', (e) => {
+    if (state.sent) return;
+    if (state.sending || state.books.some((b) => b.photos.length)) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // naslovi se mere tek kad fontovi stignu
+  function fontsReady() {
+    if (state.step === 2) { renderGrid(); renderMock(); }
+    if (state.step === 3) $('#sideCover').innerHTML = coverOf(book());
+    if (state.step === 4) renderSend();
+  }
+  if (document.fonts && document.fonts.load) {
+    Promise.all(['900 100px Raleway', '800 100px Raleway', "800 40px 'Bricolage Grotesque'"].map((f) => document.fonts.load(f, 'AŠĐ'))).then(fontsReady, fontsReady);
+  }
+
+  store.load();
+  goTo(1, true);
+})();

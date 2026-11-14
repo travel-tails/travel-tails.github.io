@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Travel Tails – admin korica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400;500;600&family=Montserrat:wght@800&family=Raleway:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<!-- PRIJAVA -->
+<div class="gate" id="gate">
+  <form class="gate-card" id="gateForm">
+    <span class="logo">TRAVEL TAILS</span>
+    <h1 id="gateTitle">Admin korica</h1>
+    <label for="gateMail">Mejl</label>
+    <input id="gateMail" type="email" autocomplete="username" required>
+    <label for="gatePass" id="gateLabel">Lozinka</label>
+    <input id="gatePass" type="password" autocomplete="current-password" required>
+    <p class="err" id="gateErr"></p>
+    <button class="btn primary" type="submit">Uđi</button>
+  </form>
+</div>
+
+<header class="top">
+  <span class="logo">TRAVEL TAILS <em>admin</em></span>
+  <div class="stats" id="stats"></div>
+  <div class="top-act">
+    <button class="icon" id="undoBtn" type="button" title="Poništi (⌘Z)" aria-label="Poništi" disabled><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button class="icon" id="redoBtn" type="button" title="Ponovi (⌘⇧Z)" aria-label="Ponovi" disabled><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+    <a class="btn ghost" href="index.html" target="_blank" rel="noopener">Pogledaj sajt</a>
+    <div class="menu">
+      <button class="btn ghost" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false">Još ▾</button>
+      <div class="menu-list" id="menuList" hidden>
+        <button type="button" data-act="config">Preuzmi fajl za server (covers-config.js)</button>
+        <button type="button" data-act="export">Sačuvaj rezervnu kopiju (.json)</button>
+        <button type="button" data-act="import">Učitaj rezervnu kopiju</button>
+        <button type="button" data-act="discard">Odbaci neobjavljene izmene</button>
+        <button type="button" data-act="logout">Odjavi se</button>
+      </div>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <button class="btn primary" id="publishBtn" type="button">Objavi na sajt</button>
+  </div>
+</header>
+
+<div class="body">
+  <aside class="side">
+    <div class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.800-3.800"/></svg><input id="q" type="search" placeholder="Pretraži: mesto, država, naslov  ( / )" autocomplete="off"></div>
+    <div class="seg" id="viewSeg">
+      <button type="button" data-view="all" class="on">Sve korice</button>
+      <button type="button" data-view="pop">Najpopularnije</button>
+    </div>
+    <div class="seg four" id="stSeg">
+      <button type="button" data-st="any" class="on">Sve</button>
+      <button type="button" data-st="live">Na sajtu</button>
+      <button type="button" data-st="draft">Skica</button>
+      <button type="button" data-st="del" title="Obrisane korice">Korpa <i id="delCount"></i></button>
+    </div>
+    <nav class="groups" id="groups" aria-label="Grupe"></nav>
+    <button class="btn soft add" id="addBtn" type="button">+ Dodaj novi dizajn</button>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="main-head">
+      <h1 id="mainTitle">Sve korice</h1>
+      <p id="mainHint"></p>
+      <button class="btn ghost small danger" id="emptyTrash" type="button" hidden>Isprazni korpu</button>
+    </div>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <section class="edit" id="edit" hidden aria-label="Uređivanje korice">
+    <div class="edit-head">
+      <button class="icon" id="prevBtn" type="button" aria-label="Prethodna">←</button>
+      <div class="edit-title"><b id="eName"></b><span id="eSub"></span></div>
+      <button class="icon" id="nextBtn" type="button" aria-label="Sledeća">→</button>
+      <button class="icon danger" id="delBtn" type="button" aria-label="Obriši koricu" title="Obriši koricu (Delete)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+      <button class="icon" id="closeBtn" type="button" aria-label="Zatvori">×</button>
+    </div>
+    <div class="edit-wrap">
+    <div class="stage">
+      <div class="preview" id="preview"></div>
+      <div class="center-act" id="centerAct">
+        <span>Na sredinu:</span>
+        <button class="btn ghost small" type="button" data-center="t">Naslov</button>
+        <button class="btn ghost small" type="button" data-center="s">Podnaslov</button>
+        <button class="btn ghost small" type="button" data-center="y">Godina</button>
+        <button class="btn ghost small" type="button" data-center="a">Ilustracija</button>
+      </div>
+      <p class="hint" id="dragHint">Prevuci naslov, godinu ili ilustraciju mišem. Na sredini se sami zalepe.</p>
+    </div>
+    <div class="edit-body">
+      <div class="try">
+        <label for="tryTitle">Isprobaj naslov</label>
+        <input id="tryTitle" placeholder="npr. Herceg Novi" autocomplete="off">
+      </div>
+
+      <div class="row">
+        <div class="seg" id="eSt">
+          <button type="button" data-st="live">Na sajtu</button>
+          <button type="button" data-st="draft">Skica</button>
+        </div>
+        <label class="switch"><input type="checkbox" id="eFeat"><span></span>Najpopularnije</label>
+      </div>
+      <div class="del-note" id="delNote" hidden>Ova korica je u korpi i ne vidi se na sajtu. <button class="btn soft small" id="restoreBtn" type="button">Vrati je</button></div>
+
+      <details class="box" open id="txtBox">
+        <summary>Tekst na korici</summary>
+        <div class="txt-rows" id="txtRows"></div>
+        <p class="note">Ovo kupac vidi kada izabere koricu i može da promeni. Oko sakriva ili vraća deo teksta (npr. godinu).</p>
+      </details>
+
+      <details class="box" open>
+        <summary>Gde se prikazuje</summary>
+        <div class="seg" id="eKind">
+          <button type="button" data-kind="travel">Putovanje</button>
+          <button type="button" data-kind="other">Tema</button>
+        </div>
+        <div class="fields" id="travelFields">
+          <label>Mesto<input id="ePlace" list="placeList" autocomplete="off"></label>
+          <label>Država<input id="eCountry" autocomplete="off"></label>
+          <label>Deo sveta<select id="eCont"></select></label>
+        </div>
+        <div class="fields" id="otherFields" hidden>
+          <label>Naziv<input id="eThemeName" autocomplete="off"></label>
+          <label>Kategorija<select id="eCat"></select></label>
+        </div>
+        <datalist id="placeList"></datalist>
+      </details>
+
+      <details class="box" id="adjBox">
+        <summary>Veličina i položaj (fino)</summary>
+        <label class="switch std"><input type="checkbox" id="eStd"><span></span>Standardni položaj naslova</label>
+        <p class="note" id="stdNote">Naslov tačno na sredini, uvek isto od gornje ivice i bar 1 cm od bočnih ivica. Isključi samo ako dizajn traži položaj iz Figme.</p>
+        <div class="sliders" id="sliders"></div>
+        <div class="box-act">
+          <button class="btn ghost small" id="resetAdj" type="button">Vrati na početno</button>
+          <button class="btn ghost small" id="copyAdj" type="button">Primeni na izabrane</button>
+        </div>
+      </details>
+      <p class="note" id="oldNote" hidden>Ovaj dizajn ima tekst kao deo slike: može da se objavi, sakrije ili premesti, ali se tekst ne pomera.</p>
+    </div>
+    </div>
+  </section>
+</div>
+
+<div class="bulk" id="bulk" hidden>
+  <b id="bulkN"></b>
+  <button type="button" data-bulk="live">Objavi</button>
+  <button type="button" data-bulk="draft">U skicu</button>
+  <button type="button" data-bulk="feat">U najpopularnije</button>
+  <button type="button" data-bulk="unfeat">Iz najpopularnijih</button>
+  <button type="button" data-bulk="del" class="danger">Obriši</button>
+  <button type="button" data-bulk="restore">Vrati iz korpe</button>
+  <button type="button" data-bulk="none">Poništi izbor</button>
+</div>
+
+<!-- NOVI DIZAJN -->
+<div class="modal" id="newModal" hidden>
+  <form class="modal-card" id="newForm" novalidate>
+    <h2>Novi dizajn</h2>
+    <div class="seg" id="newTabs">
+      <button type="button" data-tab="figma" class="on">Iz Figme (link)</button>
+      <button type="button" data-tab="png">Gotova slika</button>
+    </div>
+    <div id="tabFigma">
+      <label class="full">Linkovi okvira iz Figme, svaki u novom redu<textarea id="figLinks" rows="4" spellcheck="false"></textarea></label>
+      <p class="note">U Figmi izaberi okvir korice (A4) → desni klik → Copy/Paste as → Copy link to selection. Ilustracija, naslov i godina se prenose tačno kao u Figmi, a kupac i dalje može da menja naslov i godinu.</p>
+      <label class="full">Figma token<input id="figToken" type="password" autocomplete="off" spellcheck="false"></label>
+      <p class="note">Potreban je samo jednom: Figma → Settings → Security → Personal access tokens → Generate new token (dozvola „File content: Read only“). Čuva se samo u ovom pretraživaču.</p>
+    </div>
+    <div id="tabPng" hidden>
+      <label class="drop" id="newDrop">
+        <input type="file" id="newFile" accept="image/png,image/jpeg,image/webp">
+        <span id="newDropText"><b>Izaberi celu koricu izvezenu iz Figme</b><small>PNG, A4 (2480 × 3508 px). Ide tačno takva kakva je, sa tekstom na slici.</small></span>
+        <img id="newImg" alt="" hidden>
+      </label>
+    </div>
+    <details class="box">
+      <summary>Gde se prikazuje (prazno = prepoznaje se po naslovu)</summary>
+      <div class="seg" id="nKind">
+        <button type="button" data-kind="travel" class="on">Putovanje</button>
+        <button type="button" data-kind="other">Tema</button>
+      </div>
+      <div class="fields two" id="nTravel">
+        <label>Mesto<input id="nPlace" list="placeList" autocomplete="off"></label>
+        <label>Država<input id="nCountry" autocomplete="off"></label>
+        <label>Deo sveta<select id="nCont"></select></label>
+      </div>
+      <div class="fields two" id="nOther" hidden>
+        <label>Naziv<input id="nThemeName" autocomplete="off"></label>
+        <label>Kategorija<select id="nCat"></select></label>
+      </div>
+    </details>
+    <p class="note" id="newStatus" role="status"></p>
+    <div class="modal-act">
+      <button class="btn ghost" type="button" id="newCancel">Otkaži</button>
+      <button class="btn primary" type="submit" id="newOk">Uvezi kao skicu</button>
+    </div>
+  </form>
+</div>
+
+<!-- OBJAVA -->
+<div class="modal" id="pubModal" hidden>
+  <div class="modal-card small">
+    <h2>Objavi na sajt?</h2>
+    <p id="pubText"></p>
+    <div class="modal-act">
+      <button class="btn ghost" type="button" id="pubCancel">Otkaži</button>
+      <button class="btn primary" type="button" id="pubOk">Objavi</button>
+    </div>
+  </div>
+</div>
+
+<!-- POTVRDA -->
+<div class="modal" id="confirmModal" hidden>
+  <div class="modal-card small">
+    <h2>Sigurno?</h2>
+    <p id="confirmText"></p>
+    <div class="modal-act">
+      <button class="btn ghost" type="button" id="confirmCancel">Otkaži</button>
+      <button class="btn primary danger" type="button" id="confirmOk">U redu</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="covers-data.js"></script>
+<script src="figma.js"></script>
+<script src="covers.js"></script>
+<script src="covers-config.js"></script>
+<script src="catalog.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

@@ -1497,8 +1497,8 @@
      Slike kreću u Drive čim ih kupac ubaci (originali, privremeno ime "_u_<šifra>").
      Na "Pošalji" ide samo ono što još nije stiglo + korice, a Apps Script tada dodeli 001, 002…
      po KONAČNOM redosledu sa sajta, obriše izbačene slike i pošalje mejl. */
-  const bg = { orderId: null, orderP: null, queue: [], active: 0, LANES: 6, kickT: 0 };
-  const tmpName = (p) => '_u_' + p.id + ((p.file.name || '').match(/\.[a-z0-9]+$/i) || [p.file.type === 'image/png' ? '.png' : '.jpg'])[0].toLowerCase();
+  const bg = { orderId: null, orderP: null, queue: [], active: 0, LANES: 3, kickT: 0 };
+  const tmpName = (p) => '_u_' + p.id + '.jpg';
   function ensureOrder() {
     if (!bg.orderP) bg.orderP = callRetry('startOrder', [], 30000).then((r) => (bg.orderId = r.orderFolderId)).catch((err) => { bg.orderP = null; throw err; });
     return bg.orderP;
@@ -1518,11 +1518,11 @@
     if (!b.up) b.up = { folderP: null, folderId: null, recs: {} };
     const fresh = b.photos.filter((p) => p.status === 'ready' && !b.up.recs[p.id]);
     if (!fresh.length) return;
-    fresh.forEach((p) => (b.up.recs[p.id] = { p, name: tmpName(p), state: 'wait', loaded: 0, size: p.file.size }));
+    fresh.forEach((p) => (b.up.recs[p.id] = { p, name: tmpName(p), state: 'wait', loaded: 0, size: 2000000 }));
     try {
       const folderId = await ensureAlbum(b);
       const recs = fresh.map((p) => b.up.recs[p.id]);
-      const urls = await callRetry('getUploadUrls', [folderId, recs.map((r) => ({ filename: r.name, mimeType: r.p.file.type || 'image/jpeg' })), location.origin], 60000);
+      const urls = await callRetry('getUploadUrls', [folderId, recs.map((r) => ({ filename: r.name, mimeType: 'image/jpeg' })), location.origin], 60000);
       recs.forEach((r, i) => { r.url = urls[i]; r.state = 'queued'; bg.queue.push({ b, r }); });
       pumpBg();
     } catch (err) {
@@ -1535,7 +1535,8 @@
       if (!b.photos.includes(r.p) || r.state !== 'queued') continue; // kupac je izbacio sliku pre slanja
       bg.active++;
       r.state = 'up';
-      putRetry(r.url, r.p.file, r.p.file.type || 'image/jpeg', (n) => { r.loaded = n; if (bg.onProgress) bg.onProgress(); })
+      renderA4(r.p)
+        .then((blob) => { r.size = blob.size; return putRetry(r.url, blob, 'image/jpeg', (n) => { r.loaded = n; if (bg.onProgress) bg.onProgress(); }); })
         .then(() => { r.state = 'done'; r.loaded = r.size; })
         .catch(() => { delete b.up.recs[r.p.id]; }) // nova adresa i novi pokušaj
         .finally(() => { bg.active--; if (bg.onProgress) bg.onProgress(); pumpBg(); });
@@ -1543,14 +1544,42 @@
   }
   function kickBg() {
     clearTimeout(bg.kickT);
-    bg.kickT = setTimeout(() => { if (!state.sent) state.books.forEach((b) => feedBook(b)); }, 400);
+    bg.kickT = setTimeout(() => { if (state.sending && !state.sent) state.books.forEach((b) => feedBook(b)); }, 400);
   }
   const bookBytes = (b) => {
     const ready = b.photos.filter((p) => p.status === 'ready');
-    const total = ready.reduce((s, p) => s + p.file.size, 0) || 1;
-    const done = ready.reduce((s, p) => { const r = b.up && b.up.recs[p.id]; return s + (r ? (r.state === 'done' ? r.size : r.loaded || 0) : 0); }, 0);
+    const total = ready.length || 1;
+    const done = ready.reduce((s, p) => { const r = b.up && b.up.recs[p.id]; return s + (r ? (r.state === 'done' ? 1 : Math.min(0.95, (r.loaded || 0) / (r.size || 1))) : 0); }, 0);
     return { total, done, all: ready.every((p) => b.up && b.up.recs[p.id] && b.up.recs[p.id].state === 'done') };
   };
+
+  /* ---------- A4 stranice spremne za štampu ----------
+     Svaka fotografija se iscrta na A4 (2480×3508, 300 dpi) tačno kako je kupac podesio
+     (popunjavanje, pomeranje, rotacija, beli okvir) i šalje se kao A4-001.jpg ... u folder knjige. */
+  const A4W = 2480, A4H = 3508;
+  async function renderA4(p) {
+    const blob = await (await fetch(p.url)).blob();
+    const bmp = await createImageBitmap(blob);
+    const c = p.crop, g = geom(p), cv = makeCanvas(A4W, A4H), x = cv.getContext('2d');
+    x.fillStyle = '#fff';
+    x.fillRect(0, 0, A4W, A4H);
+    x.imageSmoothingEnabled = true;
+    x.imageSmoothingQuality = 'high';
+    x.save();
+    x.translate(A4W / 2 + (0.5 - c.cx) * g.iw * A4W, A4H / 2 + (0.5 - c.cy) * g.ih * A4W);
+    x.rotate((c.rot * Math.PI) / 180);
+    const dw = bmp.width * g.s * A4W, dh = bmp.height * g.s * A4W;
+    x.drawImage(bmp, -dw / 2, -dh / 2, dw, dh);
+    x.restore();
+    if (c.frame) {
+      const f = Math.round(FRAME * A4W);
+      x.fillStyle = '#fff';
+      x.fillRect(0, 0, A4W, f); x.fillRect(0, A4H - f, A4W, f);
+      x.fillRect(0, 0, f, A4H); x.fillRect(A4W - f, 0, f, A4H);
+    }
+    if (bmp.close) bmp.close();
+    return canvasBlob(cv, 0.93);
+  }
   async function send() {
     if (!validateSend()) return;
     state.sending = true;
@@ -1568,7 +1597,7 @@
       $('#sp' + i).textContent = pct + '%';
     });
     bg.onProgress = show;
-    bg.LANES = 8; // na kraju punom brzinom
+    bg.LANES = 4; // iscrtavanje A4 stranice je teško, pa najviše 4 odjednom
     try {
       const coversReady = Promise.all(books.map((b, i) => printFiles(b, i)));
       const oid = await ensureOrder();
@@ -1579,6 +1608,7 @@
         $('#spC').textContent = 'pripremam…';
         const files = (await coversReady).flat();
         let details = orderText();
+        details += '\nFAJLOVI FOTOGRAFIJA: 001.jpg... su A4 stranice (2480x3508, 300 dpi) spremne za stampu, tacno kako je kupac podesio (popunjavanje, pomeranje, rotacija, beli okvir).\n';
         books.forEach((b, i) => { const notes = photoNotes(b); if (notes.length) details += `\nIZMENE FOTOGRAFIJA – KNJIGA ${i + 1}:\n${notes.join('\n')}\n`; });
         files.unshift({ blob: new Blob([details], { type: 'text/plain;charset=utf-8' }), filename: 'Detalji porudzbine.txt', mimeType: 'text/plain' });
         const urls = await callRetry('getUploadUrls', [oid, files.map(({ filename, mimeType }) => ({ filename, mimeType })), location.origin], 60000);

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261115d';
+  const APP_VER = '20261115e';
 
   const { COVERS, CUSTOM, TEMPLATES, coverSVG, backSVG, spineSVG } = window.TT;
   const MIN = 40, MAX = 140, STEP = 4, FH = 297 / 210, FRAME = 0.05;

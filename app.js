@@ -770,6 +770,17 @@
   }
 
   /* ---------- 3. Fotografije ---------- */
+  /* Dekodiranje fotografije sa tačnom orijentacijom (EXIF). <img> je svuda isti (Safari, Chrome, telefon),
+     a createImageBitmap u nekim pretraživačima ignoriše okretanje pa fotografije sa telefona ispadnu položene. */
+  async function decodeImage(blob) {
+    const url = URL.createObjectURL(blob), im = new Image();
+    im.decoding = 'async';
+    im.src = url;
+    try { await im.decode(); }
+    catch (e) { await new Promise((ok, no) => { im.onload = ok; im.onerror = () => no(new Error('decode')); }); }
+    if (!im.naturalWidth) throw new Error('decode');
+    return { width: im.naturalWidth, height: im.naturalHeight, src: im, close() { URL.revokeObjectURL(url); } };
+  }
   const isHeic = (f) => /image\/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name);
   const isImage = (f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|hei[cf])$/i.test(f.name);
   let heicLoad;
@@ -804,11 +815,11 @@
   async function loadPhoto(p) {
     try {
       const blob = isHeic(p.file) ? await heicToJpeg(p.file) : p.file;
-      const bmp = await createImageBitmap(blob);
+      const bmp = await decodeImage(blob);
       p.w = bmp.width; p.h = bmp.height;
       const sc = Math.min(1, 560 / Math.max(p.w, p.h));
       const cv = makeCanvas(Math.round(p.w * sc), Math.round(p.h * sc));
-      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      cv.getContext('2d').drawImage(bmp.src, 0, 0, cv.width, cv.height);
       if (bmp.close) bmp.close();
       const t = await canvasBlob(cv, 0.82);
       p.thumb = URL.createObjectURL(t);
@@ -1559,7 +1570,7 @@
   const A4W = 2480, A4H = 3508;
   async function renderA4(p) {
     const blob = await (await fetch(p.url)).blob();
-    const bmp = await createImageBitmap(blob);
+    const bmp = await decodeImage(blob);
     const c = p.crop, g = geom(p), cv = makeCanvas(A4W, A4H), x = cv.getContext('2d');
     x.fillStyle = '#fff';
     x.fillRect(0, 0, A4W, A4H);
@@ -1569,7 +1580,7 @@
     x.translate(A4W / 2 + (0.5 - c.cx) * g.iw * A4W, A4H / 2 + (0.5 - c.cy) * g.ih * A4W);
     x.rotate((c.rot * Math.PI) / 180);
     const dw = bmp.width * g.s * A4W, dh = bmp.height * g.s * A4W;
-    x.drawImage(bmp, -dw / 2, -dh / 2, dw, dh);
+    x.drawImage(bmp.src, -dw / 2, -dh / 2, dw, dh);
     x.restore();
     if (c.frame) {
       const f = Math.round(FRAME * A4W);
@@ -1713,11 +1724,11 @@
     return cv;
   }
   async function photoData(p, w, h) {
-    const bmp = await createImageBitmap(isHeic(p.file) ? await heicToJpeg(p.file) : p.file);
+    const bmp = await decodeImage(isHeic(p.file) ? await heicToJpeg(p.file) : p.file);
     const cv = document.createElement('canvas');
     cv.width = Math.round(w); cv.height = Math.round(h);
     const r = Math.max(cv.width / bmp.width, cv.height / bmp.height), sw = cv.width / r, sh = cv.height / r;
-    cv.getContext('2d').drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, cv.width, cv.height);
+    cv.getContext('2d').drawImage(bmp.src, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, cv.width, cv.height);
     return cv.toDataURL('image/jpeg', 0.95);
   }
   async function frontPrint(b) {

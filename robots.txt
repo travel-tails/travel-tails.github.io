@@ -18,3 +18,5 @@ Allow: /
 
 User-agent: Slackbot
 Allow: /
+
+Sitemap: https://traveltails.rs/sitemap.xml

@@ -2,6 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
+  const APP_VER = '20261115c';
 
   const { COVERS, CUSTOM, TEMPLATES, coverSVG, backSVG, spineSVG } = window.TT;
   const MIN = 40, MAX = 140, STEP = 4, FH = 297 / 210, FRAME = 0.05;
@@ -1593,6 +1594,15 @@
   }
   async function send() {
     if (!validateSend()) return;
+    // stara verzija sajta u telefonu/kešu šalje originale umesto A4 stranica: ne dozvoli slanje
+    try {
+      const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
+      if (v && v !== APP_VER) {
+        $('#sending').hidden = false; $('#sendErr').hidden = false;
+        $('#sendErrText').textContent = 'Sajt je u međuvremenu osvežen. Zatvori ovu stranicu, otvori traveltails.rs ponovo (ili osveži stranicu) i ubaci fotografije ispočetka, da bi stigle ispravno.';
+        return;
+      }
+    } catch (e) { /* bez interneta: nastavi, slanje će samo javiti grešku */ }
     state.sending = true;
     const ig = '@' + state.ig.trim().replace(/^@/, '');
     const books = state.books;

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261115c';
+  const APP_VER = '20261115d';
 
   const { COVERS, CUSTOM, TEMPLATES, coverSVG, backSVG, spineSVG } = window.TT;
   const MIN = 40, MAX = 140, STEP = 4, FH = 297 / 210, FRAME = 0.05;
@@ -1476,7 +1476,7 @@
       printCache.set(key, (async () => [
         { blob: await png300(await frontPrint(b)), filename: `${name} - PREDNJA KORICA (A4 300dpi).png`, mimeType: 'image/png' },
         { blob: await png300(await backPrint(b)), filename: `${name} - ZADNJA KORICA (A4 300dpi).png`, mimeType: 'image/png' },
-        { blob: await png300(await spinePrint(b)), filename: `${name} - RIKNA ${spineMM(countOf(b))}mm (300dpi).png`, mimeType: 'image/png' },
+        { blob: await png300(await spinePrint(b)), filename: `${name} - RIKNA 30x297mm (300dpi).png`, mimeType: 'image/png' },
       ])().catch((err) => { printCache.delete(key); throw err; }));
     }
     return printCache.get(key);
@@ -1691,7 +1691,7 @@
   /* ---------- Fajlovi za štampu: A4 na 300 dpi ---------- */
   const PX_MM = 300 / 25.4;
   // PRIVREMENO: debljina rikne dok ne stignu tačne mere od štamparije
-  const spineMM = (n) => Math.max(6, Math.round(n * 0.085 + 4));
+  const spineMM = () => 30; // rikna u fajlu je uvek 30 x 297 mm; vlasnik je sam namesti na pravu debljinu
   const toBlob = (cv, type = 'image/png', q) => new Promise((ok) => cv.toBlob(ok, type, q));
   // PNG dobija oznaku 300 dpi (pHYs), da ga Illustrator i štamparija otvore u pravoj veličini
   const CRC = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -1804,7 +1804,7 @@
         `  Naslov: ${b.title || ''}`, `  Podnaslov: ${b.sub || ''}`, `  Godina: ${b.year || ''}`, `  Rikna: ${spineText(b)}`,
         `  Boje: korice ${b.bg || c.bg}, naslov ${b.ink || c.ink || 'original'}, podnaslov ${b.accent || c.accent || 'original'}`,
         `  Zadnja korica: ${{ none: 'prazna', text: 'samo tekst', one: '1 fotografija', four: '4 fotografije' }[b.back.layout]}`,
-        `  Rikna u fajlu: ${spineMM(n)} mm (privremeno, proveriti sa štamparijom)`);
+        `  Rikna u fajlu: 30 x 297 mm (300 dpi)`);
       if (b.note) lines.push(`  Napomena: ${b.note}`);
       lines.push('');
     });
@@ -1818,7 +1818,7 @@
       const dir = zip.folder(`knjiga-${i + 1}-${slug(b.title || b.dest)}`);
       dir.file('prednja-korica-A4-300dpi.png', await png300(await frontPrint(b)), { compression: 'STORE' });
       dir.file('zadnja-korica-A4-300dpi.png', await png300(await backPrint(b)), { compression: 'STORE' });
-      dir.file(`rikna-${spineMM(countOf(b))}mm-300dpi.png`, await png300(await spinePrint(b)), { compression: 'STORE' });
+      dir.file(`rikna-30x297mm-300dpi.png`, await png300(await spinePrint(b)), { compression: 'STORE' });
       const ph = dir.folder('fotografije');
       b.photos.filter((p) => p.status === 'ready').forEach((p, k) => {
         const ext = (p.name.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0].toLowerCase();

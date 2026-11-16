@@ -7,9 +7,10 @@
   const BASE = TT.COVERS.slice();
   const KEYS = { pub: 'tt-catalog-pub', draft: 'tt-catalog-draft' };
   // podešavanja napravljena za neki stariji skup korica se ne primenjuju
-  const valid = (cfg) => (cfg && cfg.ver === VER ? cfg : null);
+  const series = (v) => String(v || '').split('-')[0];
+  const valid = (cfg) => (cfg && series(cfg.ver) === series(VER) ? cfg : null);
   const read = (k) => { try { return valid(JSON.parse(localStorage.getItem(k) || 'null')); } catch (e) { return null; } };
-  const FIELDS = ['name', 'country', 'cont', 'other', 'cat', 'adj', 'st', 'txt'];
+  const FIELDS = ['name', 'country', 'cont', 'other', 'cat', 'adj', 'st', 'txt', 'also'];
   BASE.forEach((c) => {
     c.st = c.top ? 'live' : 'draft';
     c._def = {};
@@ -55,15 +56,21 @@
       c.sub = t.s != null ? t.s : c._orig.sub;
       c.year = t.y != null ? t.y : c._orig.year;
     });
+    // korica na dva mesta: dodatna mesta (also) ulaze i u reči za pretragu
+    all.forEach((c) => {
+      if (c._akaBase == null) c._akaBase = c.aka || '';
+      c.aka = c._akaBase + ((c.also || []).length ? ' ' + c.also.map((a) => `${a.name || ''} ${a.country || ''}`).join(' ').toLowerCase() : '');
+    });
     const feat = (cfg.feat || DEF_FEAT).filter((id) => all.some((c) => c.id === id && c.st === 'live'));
     all.forEach((c) => { c.featIdx = feat.indexOf(c.id); });
-    return { all, feat };
+    return { all, feat, fill: copy(cfg.countryFill) || {} };
   }
 
   const isAdmin = /admin\.html$/.test(location.pathname);
   const cfg = isAdmin ? read(KEYS.draft) || read(KEYS.pub) || valid(window.TT_CATALOG) : read(KEYS.pub) || valid(window.TT_CATALOG);
   const res = apply(cfg);
   TT.ALL = res.all;
+  TT.FILL = res.fill;
   TT.FEAT = res.feat;
   if (!isAdmin) {
     // sajt vidi samo objavljene korice

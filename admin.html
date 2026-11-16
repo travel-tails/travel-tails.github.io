@@ -36,6 +36,7 @@
     <div class="menu">
       <button class="btn ghost" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false">Još ▾</button>
       <div class="menu-list" id="menuList" hidden>
+        <button type="button" data-act="gh">Poveži automatsku objavu (jednom)</button>
         <button type="button" data-act="config">Preuzmi fajl za server (covers-config.js)</button>
         <button type="button" data-act="export">Sačuvaj rezervnu kopiju (.json)</button>
         <button type="button" data-act="import">Učitaj rezervnu kopiju</button>
@@ -69,7 +70,12 @@
     <div class="main-head">
       <h1 id="mainTitle">Sve korice</h1>
       <p id="mainHint"></p>
+      <button class="btn soft small" id="pullBtn" type="button" hidden>+ Dodaj koricu sa drugog mesta</button>
       <button class="btn ghost small danger" id="emptyTrash" type="button" hidden>Isprazni korpu</button>
+    </div>
+    <div class="fillbox" id="fillBox" hidden>
+      <label class="switch"><input type="checkbox" id="fillChk"><span></span><b id="fillTxt"></b></label>
+      <p class="note" id="fillNote"></p>
     </div>
     <div class="grid" id="grid"></div>
   </main>
@@ -131,6 +137,12 @@
           <label>Kategorija<select id="eCat"></select></label>
         </div>
         <datalist id="placeList"></datalist>
+        <div class="also">
+          <h5>Prikaži ovu koricu i na:</h5>
+          <div class="chips" id="alsoList"></div>
+          <label>Dodaj mesto, državu ili temu<input id="alsoAdd" list="placeList" autocomplete="off" placeholder="upiši i pritisni Enter"></label>
+          <p class="note">Korica će se videti na oba mesta (i u adminu i na sajtu). Ne pravi se kopija.</p>
+        </div>
       </details>
 
       <details class="box" id="adjBox">
@@ -224,6 +236,39 @@
   </form>
 </div>
 
+<!-- KORICA SA DRUGOG MESTA -->
+<div class="modal" id="pickModal" hidden>
+  <div class="modal-card wide">
+    <h2 id="pickTitle">Dodaj korice</h2>
+    <input id="pickQ" type="search" placeholder="Pretraži korice (mesto, država, naslov)" autocomplete="off">
+    <div class="pickgrid" id="pickGrid"></div>
+    <div class="modal-act">
+      <button class="btn ghost" type="button" id="pickCancel">Otkaži</button>
+      <button class="btn primary" type="button" id="pickOk" disabled>Dodaj</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTOMATSKA OBJAVA -->
+<div class="modal" id="ghModal" hidden>
+  <div class="modal-card">
+    <h2>Automatska objava</h2>
+    <p>Kad je ovo podešeno, „Objavi na sajt“ sam menja sajt (bez preuzimanja i prevlačenja fajlova). Radi se samo jednom.</p>
+    <ol class="steps">
+      <li>Otvori <b>github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</b>.</li>
+      <li>Repository access: samo <b>travel-tails.github.io</b>. Permissions: <b>Contents → Read and write</b>.</li>
+      <li>Kopiraj token i nalepi ga ovde. Čuva se samo u ovom pretraživaču.</li>
+    </ol>
+    <label class="full">GitHub token<input id="ghToken" type="password" autocomplete="off" spellcheck="false"></label>
+    <p class="note" id="ghStatus"></p>
+    <div class="modal-act">
+      <button class="btn ghost" type="button" id="ghCancel">Zatvori</button>
+      <button class="btn ghost danger" type="button" id="ghClear">Ukloni token</button>
+      <button class="btn primary" type="button" id="ghSave">Sačuvaj</button>
+    </div>
+  </div>
+</div>
+
 <!-- OBJAVA -->
 <div class="modal" id="pubModal" hidden>
   <div class="modal-card small">
@@ -251,11 +296,11 @@
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<script src="covers-data.js?v=20261116a"></script>
-<script src="figma.js?v=20261116a"></script>
-<script src="covers.js?v=20261116a"></script>
-<script src="covers-config.js?v=20261116a"></script>
-<script src="catalog.js?v=20261116a"></script>
-<script src="admin.js?v=20261116a"></script>
+<script src="covers-data.js?v=20261116b"></script>
+<script src="figma.js?v=20261116b"></script>
+<script src="covers.js?v=20261116b"></script>
+<script src="covers-config.js?v=20261116b"></script>
+<script src="catalog.js?v=20261116b"></script>
+<script src="admin.js?v=20261116b"></script>
 </body>
 </html>

@@ -42,7 +42,7 @@
   }
 
   /* ---------- stanje ---------- */
-  const empty = () => ({ ver: catalog.VER, covers: {}, feat: catalog.DEF_FEAT.slice(), added: [] });
+  const empty = () => ({ ver: catalog.VER, covers: {}, feat: catalog.DEF_FEAT.slice(), added: [], countryFill: {} });
   // podešavanja za stari skup korica se brišu (novi skup ima drugu verziju)
   Object.values(KEYS).forEach((k) => { try { if (localStorage.getItem(k) && !catalog.read(k)) localStorage.removeItem(k); } catch (e) { /* ignore */ } });
   let pub = catalog.read(KEYS.pub) || clone(catalog.valid(window.TT_CATALOG) || empty());
@@ -51,6 +51,7 @@
   if (!draft.feat) draft.feat = catalog.DEF_FEAT.slice();
   if (!draft.added) draft.added = [];
   if (!draft.covers) draft.covers = {};
+  if (!draft.countryFill) draft.countryFill = {};
   let ALL = TT.ALL;
   const ui = { view: 'all', st: 'any', group: '', q: '', cur: null, picked: new Set(), list: [] };
   /* Poništi / Ponovi (Cmd+Z / Cmd+Shift+Z) */
@@ -101,19 +102,23 @@
     save();
   }
   // grupe: c:kontinent, k:država (sa svim mestima u njoj), p:mesto, t:tema
-  const inGroup = (c, g) => {
+  const inG = (c, g) => {
     if (!g) return true;
     const v = g.slice(2);
     if (g[0] === 't') return !!c.other && (c.cat || [])[0] === v;
     if (c.other) return false;
     return g[0] === 'c' ? contOf(c) === v : g[0] === 'k' ? countryOf(c) === v : c.name === v;
   };
+  // korica može da bude prikazana i na dodatnim mestima (c.also)
+  const placesOf = (c) => [c].concat(c.also || []);
+  const inGroup = (c, g) => !g || placesOf(c).some((p) => inG(p, g));
   const visible = (c) => (ui.st === 'del' ? c.st === 'del' : c.st !== 'del');
   function changes() {
     let n = 0;
     const ids = new Set([...Object.keys(draft.covers), ...Object.keys(pub.covers || {})]);
     ids.forEach((id) => { if (JSON.stringify(draft.covers[id] || {}) !== JSON.stringify((pub.covers || {})[id] || {})) n++; });
     if (JSON.stringify(draft.feat) !== JSON.stringify(pub.feat || catalog.DEF_FEAT)) n++;
+    if (JSON.stringify(draft.countryFill || {}) !== JSON.stringify(pub.countryFill || {})) n++;
     if (JSON.stringify(draft.added) !== JSON.stringify(pub.added || [])) n += Math.max(1, Math.abs(draft.added.length - (pub.added || []).length));
     return n;
   }
@@ -128,25 +133,27 @@
   /* ---------- leva strana: grupe ---------- */
   function renderGroups() {
     const vis = ALL.filter(visible);
+    const ent = vis.flatMap((c) => placesOf(c).map((p) => ({ c, p })));
+    const uniq = (es) => { const s = new Set(); return es.filter((e) => !s.has(e.c.id) && s.add(e.c.id)).map((e) => e.c); };
     const cnt = (list) => ({ all: list.length, live: list.filter((c) => c.st === 'live').length });
     const btn = (k, label, list, cls = '') => `<button type="button" data-g="${esc(k)}" class="${cls} ${ui.group === k ? 'on' : ''}"><span>${esc(label)}</span><small>${ui.st === 'del' ? list.length : cnt(list).live + '/' + list.length}</small></button>`;
     let html = btn('', 'Sve grupe', vis);
-    const open = ui.group ? (ui.group[0] === 'k' ? ui.group.slice(2) : ui.group[0] === 'p' ? (vis.find((c) => !c.other && c.name === ui.group.slice(2)) || {}).country || ui.group.slice(2) : '') : '';
+    const open = ui.group ? (ui.group[0] === 'k' ? ui.group.slice(2) : ui.group[0] === 'p' ? (ent.find((e) => !e.p.other && e.p.name === ui.group.slice(2)) || { p: {} }).p.country || ui.group.slice(2) : '') : '';
     CONTS.forEach(([k, t]) => {
-      const inC = vis.filter((c) => !c.other && contOf(c) === k);
+      const inC = ent.filter((e) => !e.p.other && contOf(e.p) === k);
       if (!inC.length) return;
-      html += `<h4><button type="button" data-g="c:${k}" class="${ui.group === 'c:' + k ? 'on' : ''}">${t}<small>${inC.length}</small></button></h4>`;
+      html += `<h4><button type="button" data-g="c:${k}" class="${ui.group === 'c:' + k ? 'on' : ''}">${t}<small>${uniq(inC).length}</small></button></h4>`;
       const countries = new Map();
-      inC.forEach((c) => { const n = countryOf(c); if (!countries.has(n)) countries.set(n, []); countries.get(n).push(c); });
-      [...countries].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'sr')).forEach(([name, list]) => {
+      inC.forEach((e) => { const n = countryOf(e.p); if (!countries.has(n)) countries.set(n, []); countries.get(n).push(e); });
+      [...countries].map(([n, es]) => [n, uniq(es), es]).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'sr')).forEach(([name, list, es]) => {
         const places = new Map();
-        list.forEach((c) => { if (c.name !== name) { if (!places.has(c.name)) places.set(c.name, []); places.get(c.name).push(c); } });
+        es.forEach((e) => { if (e.p.name !== name) { if (!places.has(e.p.name)) places.set(e.p.name, []); places.get(e.p.name).push(e); } });
         html += btn('k:' + name, name + (places.size ? ' ›' : ''), list, 'country');
-        if (places.size && open === name) html += [...places].sort((a, b) => b[1].length - a[1].length).map(([p, l]) => btn('p:' + p, p, l, 'place')).join('');
+        if (places.size && open === name) html += [...places].map(([p, l]) => [p, uniq(l)]).sort((a, b) => b[1].length - a[1].length).map(([p, l]) => btn('p:' + p, p, l, 'place')).join('');
       });
     });
-    const themes = CATS.filter(([k]) => vis.some((c) => c.other && (c.cat || [])[0] === k));
-    if (themes.length) html += '<h4><span>Teme</span></h4>' + themes.map(([k, t]) => btn('t:' + k, t, vis.filter((c) => c.other && (c.cat || [])[0] === k))).join('');
+    const themes = CATS.filter(([k]) => ent.some((e) => e.p.other && (e.p.cat || [])[0] === k));
+    if (themes.length) html += '<h4><span>Teme</span></h4>' + themes.map(([k, t]) => btn('t:' + k, t, uniq(ent.filter((e) => e.p.other && (e.p.cat || [])[0] === k)))).join('');
     $('#groups').innerHTML = html;
   }
   $('#groups').addEventListener('click', (e) => {
@@ -174,10 +181,11 @@
     const qa = del
       ? `<button type="button" data-qa="restore" title="Vrati iz obrisanih">${ICO.back}</button>`
       : `<button type="button" data-qa="feat" class="${c.featIdx >= 0 ? 'on' : ''}" title="${c.featIdx >= 0 ? 'Izbaci iz najpopularnijih' : 'Dodaj u najpopularnije'}">${ICO.star}</button><button type="button" data-qa="st" title="${c.st === 'draft' ? 'Objavi na sajt' : 'Skloni sa sajta (skica)'}">${c.st === 'draft' ? ICO.eyeOff : ICO.eye}</button><button type="button" data-qa="del" class="danger" title="Obriši koricu">${ICO.trash}</button>`;
-    return `<div class="card ${c.st === 'draft' ? 'draft' : ''} ${del ? 'deleted' : ''} ${ui.cur === c.id ? 'on' : ''} ${ui.picked.has(c.id) ? 'picked' : ''}" data-id="${c.id}">
+    const via = !!ui.group && ui.view === 'all' && !inG(c, ui.group);
+    return `<div class="card ${c.st === 'draft' ? 'draft' : ''} ${del ? 'deleted' : ''} ${via ? 'via' : ''} ${ui.cur === c.id ? 'on' : ''} ${ui.picked.has(c.id) ? 'picked' : ''}" data-id="${c.id}">
       <span class="pick" data-pick title="Izaberi"></span>
       <span class="thumb">${thumb(c)}</span>
-      <div class="qa">${qa}</div>
+      <div class="qa">${via ? '<button type="button" data-qa="unalso" title="Ukloni iz ove grupe (ostaje na svom mestu)">×</button>' : ''}${qa}</div>
       ${c.isNew ? '<span class="badge">Novo</span>' : ''}
       <div class="card-foot"><i class="dot"></i><b title="${esc(label(c))}">${esc(label(c))}</b>${c.featIdx >= 0 ? '<span class="star" title="Najpopularnije">★</span>' : ''}</div>
     </div>`;
@@ -207,6 +215,8 @@
     $('#mainTitle').textContent = ui.view === 'pop' ? 'Najpopularnije' : groupTitle();
     $('#mainHint').textContent = ui.view === 'pop' ? `${ui.list.length} korica · prevuci da promeniš redosled na sajtu` : ui.st === 'del' ? `${ui.list.length} obrisanih · ne vide se na sajtu; vrati ih strelicom ili „Isprazni korpu“` : `${ui.list.length} korica · klik = uređivanje · kvadratić ili ⌘-klik = izbor više · ⌘Z = poništi`;
     $('#emptyTrash').hidden = !(ui.st === 'del' && ui.list.length);
+    $('#pullBtn').hidden = !(ui.view === 'all' && ui.st !== 'del' && /^[kpt]:/.test(ui.group));
+    renderFill();
     $('#grid').innerHTML = ui.list.length ? ui.list.map(cardHTML).join('') : '<p class="empty">Nema korica za ovaj izbor.</p>';
     if (sortable) { sortable.destroy(); sortable = null; }
     if (ui.view === 'pop' && window.Sortable) {
@@ -231,6 +241,7 @@
       if (act === 'st') { setStatus([id], c.st === 'draft' ? 'live' : 'draft'); toast(byId(id).st === 'live' ? 'Objavljeno (posle „Objavi na sajt“)' : 'Sklonjeno u skicu'); }
       if (act === 'del') { setStatus([id], 'del'); if (ui.cur === id) closeEdit(); toast('Korica je obrisana', true); }
       if (act === 'restore') { setStatus([id], 'draft'); toast('Vraćeno kao skica'); }
+      if (act === 'unalso') { setOv(id, { also: (c.also || []).filter((a) => !inG(a, ui.group)).length ? (c.also || []).filter((a) => !inG(a, ui.group)) : undefined }); toast('Uklonjeno iz ove grupe', true); }
       renderGroups(); renderGrid(); renderStats();
       if (ui.cur === id) fillEdit();
       return;
@@ -408,6 +419,7 @@
       $('#eStd').disabled = !T.length || lowTitle;
       $('#stdNote').textContent = lowTitle ? 'Na ovoj korici je naslov namerno niže, pa ostaje kao u Figmi. Pomeri ga mišem ako treba.' : 'Naslov tačno na sredini, uvek isto od gornje ivice i bar 1 cm od bočnih ivica. Isključi samo ako dizajn traži položaj iz Figme.';
     }
+    renderAlso(c);
     renderPreview();
   }
   function openEdit(id) {
@@ -934,6 +946,162 @@
     refreshCard(ui.cur);
   });
 
+
+  /* ---------- država: korice države za svako mesto u njoj ---------- */
+  const fillCountry = () => {
+    const g = ui.group;
+    if (!g) return '';
+    if (g[0] === 'k') return g.slice(2);
+    if (g[0] === 'p') { const e = ALL.flatMap(placesOf).find((p) => !p.other && p.name === g.slice(2)); return e ? e.country || '' : ''; }
+    return '';
+  };
+  function renderFill() {
+    const cn = fillCountry(), box = $('#fillBox');
+    box.hidden = !cn || ui.view !== 'all';
+    if (box.hidden) return;
+    const on = !!(draft.countryFill || {})[cn];
+    $('#fillChk').checked = on;
+    $('#fillTxt').textContent = `Za svako mesto u državi „${cn}“ nudi korice države`;
+    $('#fillNote').textContent = on
+      ? `Uključeno: kad kupac upiše mesto iz države ${cn} (npr. Krf), vidi korice države ${cn} i na njima piše to mesto. Menja se samo tekst.`
+      : `Isključeno: kupac vidi samo korice koje su baš za upisano mesto. Uključi ako hoćeš da za svaki grad ove države izađu korice države.`;
+  }
+  $('#fillChk').addEventListener('change', (e) => {
+    const cn = fillCountry();
+    if (!cn) return;
+    snap();
+    if (e.target.checked) draft.countryFill[cn] = 1; else delete draft.countryFill[cn];
+    save(); renderFill(); renderStats();
+    toast(e.target.checked ? `Uključeno za ${cn}` : `Isključeno za ${cn}`, true);
+  });
+
+  /* ---------- korica prikazana na više mesta (c.also) ---------- */
+  const alabel = (a) => (a.other ? 'Tema: ' + a.name : a.name + (a.country ? ', ' + a.country : ''));
+  const samePl = (a, b) => !!a.other === !!b.other && norm(a.name) === norm(b.name);
+  function resolvePlacement(v) {
+    const n = norm(v);
+    if (!n) return null;
+    const th = CATS.find(([k, t]) => norm(t) === n || k === n);
+    if (th) return { other: true, cat: [th[0]], name: th[1] };
+    const all = ALL.flatMap(placesOf).filter((p) => !p.other);
+    const hit = all.find((p) => norm(p.name) === n);
+    if (hit) return { name: hit.name, country: hit.country || '', cont: contOf(hit) };
+    const ct = all.find((p) => norm(p.country || '') === n);
+    if (ct) return { name: ct.country, country: '', cont: contOf(ct) };
+    return { name: String(v).trim(), country: '', cont: 'evropa' };
+  }
+  function placementOfGroup(g) {
+    const v = g.slice(2);
+    if (g[0] === 't') return { other: true, cat: [v], name: (CATS.find(([k]) => k === v) || ['', v])[1] };
+    const all = ALL.flatMap(placesOf).filter((p) => !p.other);
+    if (g[0] === 'p') { const e = all.find((p) => p.name === v); return { name: v, country: e ? e.country || '' : '', cont: e ? contOf(e) : 'evropa' }; }
+    if (g[0] === 'k') { const e = all.find((p) => countryOf(p) === v); return { name: v, country: '', cont: e ? contOf(e) : 'evropa' }; }
+    return null;
+  }
+  function addAlso(ids, pl) {
+    let n = 0;
+    snap();
+    ids.forEach((id) => {
+      const c = byId(id);
+      if (!c || placesOf(c).some((p) => samePl(p, pl))) return;
+      const o = Object.assign(draft.covers[id] || {}, { also: (c.also || []).concat([pl]) });
+      draft.covers[id] = o;
+      n++;
+    });
+    reapply(); save();
+    return n;
+  }
+  function renderAlso(c) {
+    $('#alsoList').innerHTML = (c.also || []).map((a, i) => `<span class="chip">${esc(alabel(a))}<button type="button" data-rm="${i}" aria-label="Ukloni">×</button></span>`).join('') || '<span class="note">Samo na svom mestu.</span>';
+  }
+  $('#alsoList').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rm]');
+    if (!b || !ui.cur) return;
+    const c = byId(ui.cur), rest = (c.also || []).filter((_, i) => i !== +b.dataset.rm);
+    setOv(ui.cur, { also: rest.length ? rest : undefined });
+    fillEdit(); renderGroups(); renderGrid(); renderStats();
+  });
+  const addAlsoFromInput = () => {
+    const inp = $('#alsoAdd');
+    if (!ui.cur || !inp.value.trim()) return;
+    const pl = resolvePlacement(inp.value);
+    inp.value = '';
+    if (!pl) return;
+    if (!addAlso([ui.cur], pl)) { toast('Korica je već na tom mestu.'); return; }
+    fillEdit(); renderGroups(); renderGrid(); renderStats();
+    toast('Korica je dodata i na: ' + alabel(pl), true);
+  };
+  $('#alsoAdd').addEventListener('change', addAlsoFromInput);
+  $('#alsoAdd').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addAlsoFromInput(); } });
+
+  // izbor korica sa drugih mesta u trenutnu grupu
+  const pick = { sel: new Set() };
+  function renderPick() {
+    const words = norm($('#pickQ').value).split(/\s+/).filter(Boolean);
+    const list = ALL.filter((c) => c.st !== 'del' && !inGroup(c, ui.group) && (!words.length || words.every((w) => norm(`${c.name} ${c.title} ${c.country || ''} ${c.aka || ''}`).includes(w)))).slice(0, 150);
+    $('#pickGrid').innerHTML = list.length ? list.map((c) => `<button type="button" class="pk ${pick.sel.has(c.id) ? 'on' : ''}" data-id="${c.id}"><span class="thumb">${thumb(c)}</span>${esc(label(c))}</button>`).join('') : '<p class="note">Nema korica za ovu pretragu.</p>';
+    $('#pickOk').disabled = !pick.sel.size;
+    $('#pickOk').textContent = pick.sel.size ? `Dodaj (${pick.sel.size})` : 'Dodaj';
+  }
+  $('#pullBtn').onclick = () => {
+    pick.sel = new Set();
+    $('#pickQ').value = '';
+    $('#pickTitle').textContent = `Dodaj korice u: ${groupTitle()}`;
+    $('#pickModal').hidden = false;
+    renderPick();
+    $('#pickQ').focus();
+  };
+  $('#pickQ').addEventListener('input', renderPick);
+  $('#pickGrid').addEventListener('click', (e) => {
+    const b = e.target.closest('.pk');
+    if (!b) return;
+    pick.sel.has(b.dataset.id) ? pick.sel.delete(b.dataset.id) : pick.sel.add(b.dataset.id);
+    b.classList.toggle('on', pick.sel.has(b.dataset.id));
+    $('#pickOk').disabled = !pick.sel.size;
+    $('#pickOk').textContent = pick.sel.size ? `Dodaj (${pick.sel.size})` : 'Dodaj';
+  });
+  $('#pickCancel').onclick = () => ($('#pickModal').hidden = true);
+  $('#pickOk').onclick = () => {
+    const pl = placementOfGroup(ui.group);
+    if (!pl) return;
+    const n = addAlso([...pick.sel], pl);
+    $('#pickModal').hidden = true;
+    renderAll();
+    toast(`Dodato u „${groupTitle()}“: ${n}. Korice ostaju i na svom mestu.`, true);
+  };
+
+  /* ---------- automatska objava (GitHub) ---------- */
+  const GH_KEY = 'tt-gh-token', GH_REPO = 'travel-tails/travel-tails.github.io';
+  const ghToken = () => { try { return localStorage.getItem(GH_KEY) || ''; } catch (e) { return ''; } };
+  async function buildConfig() {
+    // nove korice nose i pun kvalitet (A4) u fajlu, da štampa kod kupca ne bude mutna
+    const out = clone(pub);
+    for (const n of out.added || []) {
+      try {
+        const blob = await catalog.idbGet(n.id);
+        if (!blob) continue;
+        const bmp = await createImageBitmap(blob), cv = document.createElement('canvas');
+        cv.width = bmp.width; cv.height = bmp.height;
+        cv.getContext('2d').drawImage(bmp, 0, 0);
+        n.fig.master = cv.toDataURL('image/webp', 0.97);
+      } catch (err) { /* ostaje slika za sajt */ }
+    }
+    return '/* Objavljena podešavanja korica iz admin panela. */\nwindow.TT_CATALOG = ' + JSON.stringify(out) + ';\n';
+  }
+  const b64 = (text) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = bad; r.readAsDataURL(new Blob([text], { type: 'text/plain' })); });
+  async function ghPublish(text) {
+    const url = `https://api.github.com/repos/${GH_REPO}/contents/covers-config.js`;
+    const H = { Authorization: 'Bearer ' + ghToken(), Accept: 'application/vnd.github+json' };
+    const cur = await fetch(url + '?ref=main', { headers: H });
+    if (cur.status === 401 || cur.status === 403) throw new Error('GitHub token ne važi ili nema pravo upisa (Contents → Read and write).');
+    const sha = cur.ok ? (await cur.json()).sha : undefined;
+    const put = await fetch(url, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify({ message: 'Admin: izmene korica', content: await b64(text), sha, branch: 'main' }) });
+    if (!put.ok) throw new Error('Objava nije uspela (' + put.status + ').');
+  }
+  $('#ghSave').onclick = () => { const v = $('#ghToken').value.trim(); if (!v) return; localStorage.setItem(GH_KEY, v); $('#ghStatus').textContent = 'Sačuvano. Od sada „Objavi na sajt“ sam menja sajt.'; $('#ghToken').value = ''; };
+  $('#ghClear').onclick = () => { localStorage.removeItem(GH_KEY); $('#ghStatus').textContent = 'Token je uklonjen.'; };
+  $('#ghCancel').onclick = () => ($('#ghModal').hidden = true);
+
   /* ---------- objava i fajlovi ---------- */
   $('#publishBtn').onclick = () => {
     const live = ALL.filter((c) => c.st === 'live').length;
@@ -941,12 +1109,25 @@
     $('#pubModal').hidden = false;
   };
   $('#pubCancel').onclick = () => ($('#pubModal').hidden = true);
-  $('#pubOk').onclick = () => {
+  $('#pubOk').onclick = async () => {
     pub = clone(draft);
-    try { localStorage.setItem(KEYS.pub, JSON.stringify(pub)); } catch (e) { toast('Objava nije uspela: nema mesta u pretraživaču.'); return; }
-    $('#pubModal').hidden = true;
+    try { localStorage.setItem(KEYS.pub, JSON.stringify(pub)); } catch (e) { toast('Objava lokalno nije uspela: nema mesta u pretraživaču.'); }
     renderStats();
-    toast('Objavljeno. Osveži sajt da vidiš promene.');
+    if (!ghToken()) {
+      $('#pubModal').hidden = true;
+      toast('Sačuvano u ovom pretraživaču. Da se vidi svima: Još → „Poveži automatsku objavu“ (jednom).');
+      return;
+    }
+    const btn = $('#pubOk');
+    btn.disabled = true; btn.textContent = 'Objavljujem…';
+    try {
+      await ghPublish(await buildConfig());
+      $('#pubModal').hidden = true;
+      toast('Objavljeno na sajt. Vidi se za oko 2 minuta (osveži sajt).');
+    } catch (err) {
+      $('#pubText').textContent = 'Greška: ' + err.message + ' Izmene su sačuvane u adminu; probaj ponovo.';
+    }
+    btn.disabled = false; btn.textContent = 'Objavi';
   };
   const download = (name, text, type) => {
     const a = document.createElement('a');
@@ -962,24 +1143,11 @@
     if (!b) return;
     $('#menuList').hidden = true;
     const act = b.dataset.act;
-    if (act === 'config') (async () => {
-      // nove korice nose i pun kvalitet (A4) u fajlu, da štampa kod kupca ne bude mutna
-      const out = clone(pub);
-      for (const n of out.added || []) {
-        try {
-          const blob = await catalog.idbGet(n.id);
-          if (!blob) continue;
-          const bmp = await createImageBitmap(blob), cv = document.createElement('canvas');
-          cv.width = bmp.width; cv.height = bmp.height;
-          cv.getContext('2d').drawImage(bmp, 0, 0);
-          n.fig.master = cv.toDataURL('image/webp', 0.97);
-        } catch (err) { /* ostaje slika za sajt */ }
-      }
-      download('covers-config.js', '/* Objavljena podešavanja korica iz admin panela. */\nwindow.TT_CATALOG = ' + JSON.stringify(out) + ';\n', 'text/javascript');
-    })();
+    if (act === 'gh') { $('#ghStatus').textContent = ghToken() ? 'Token je već sačuvan.' : ''; $('#ghModal').hidden = false; }
+    if (act === 'config') buildConfig().then((t) => download('covers-config.js', t, 'text/javascript'));
     if (act === 'export') download(`korice-rezerva-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(draft), 'application/json');
     if (act === 'import') $('#importFile').click();
-    if (act === 'discard') { snap(); draft = clone(pub); if (!draft.feat) draft.feat = catalog.DEF_FEAT.slice(); draft.added = draft.added || []; draft.covers = draft.covers || {}; reapply(); save(); renderAll(); toast('Vraćeno na objavljenu verziju.'); }
+    if (act === 'discard') { snap(); draft = clone(pub); if (!draft.feat) draft.feat = catalog.DEF_FEAT.slice(); draft.added = draft.added || []; draft.covers = draft.covers || {}; draft.countryFill = draft.countryFill || {}; reapply(); save(); renderAll(); toast('Vraćeno na objavljenu verziju.'); }
     if (act === 'logout') { sessionStorage.removeItem('tt-admin-ok'); location.reload(); }
   });
   $('#importFile').addEventListener('change', async (e) => {
@@ -1007,7 +1175,7 @@
     const opts = (arr) => arr.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
     $('#eCont').innerHTML = $('#nCont').innerHTML = opts(CONTS);
     $('#eCat').innerHTML = $('#nCat').innerHTML = opts(CATS);
-    $('#placeList').innerHTML = [...new Set(ALL.filter((c) => !c.other).map((c) => c.name))].sort((a, b) => a.localeCompare(b, 'sr')).map((n) => `<option value="${esc(n)}">`).join('');
+    $('#placeList').innerHTML = [...new Set(ALL.filter((c) => !c.other).flatMap((c) => [c.name, c.country]).filter(Boolean).concat(CATS.map(([, t]) => t)))].sort((a, b) => a.localeCompare(b, 'sr')).map((n) => `<option value="${esc(n)}">`).join('');
     reapply();
     renderAll();
     renderUndo();

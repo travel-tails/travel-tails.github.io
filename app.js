@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261116a';
+  const APP_VER = '20261116b';
 
   const { COVERS, CUSTOM, TEMPLATES, coverSVG, backSVG, spineSVG } = window.TT;
   const MIN = 40, MAX = 140, STEP = 4, FH = 297 / 210, FRAME = 0.05;
@@ -227,8 +227,20 @@
       if (hit) { if (!hit.aka.includes(aka)) hit.aka += ' ' + aka; }
       else m.set(k, { name: c.name, sub: c.other ? 'Tema' : c.country || 'Država', aka, icon: c.other ? THEME_ICON[c.id] || CAT_ICON[c.cat[0]] || 'heart' : c.country ? 'pin' : 'globe' });
     });
+    // korica koja je prikazana i na drugom mestu: i to mesto je u predlozima
+    COVERS.forEach((c) => (c.also || []).forEach((a) => {
+      const k = norm(a.name);
+      if (k && !m.has(k)) m.set(k, { name: a.name, sub: a.other ? 'Tema' : a.country || 'Država', aka: '', icon: a.other ? CAT_ICON[(a.cat || [])[0]] || 'heart' : a.country ? 'pin' : 'globe' });
+    }));
     return [...m.values()];
   })();
+  // admin: za neke države se za svako mesto u njoj nude korice cele države (menja se samo tekst)
+  function countryFill(q) {
+    const n = norm(q), p = PLACES.find((x) => norm(x.name) === n);
+    if (!p || p.sub === 'Država' || p.sub === 'Tema' || !(TT.FILL || {})[p.sub]) return null;
+    const list = COVERS.filter((c) => !c.other && !c.country && norm(c.name) === norm(p.sub) && c.fig && c.fig.T.length);
+    return list.length ? { name: p.name, list } : null;
+  }
   function matchPlaces(q) {
     const n = norm(q);
     if (!n) return [];
@@ -424,15 +436,19 @@
       const n = norm(q);
       const list = matchCovers(q);
       // tačno mesto, ili država: "Španija" / "Spain" daje i Madrid, Barselonu…; prvo korice baš tog naziva
-      const whole = (c) => (' ' + norm(c.aka || '') + ' ').includes(' ' + n + ' ') || norm(c.country || '') === n;
-      const exact = list.filter((c) => norm(c.name) === n || norm(c.title) === n || whole(c))
-        .sort((a, b) => (norm(a.name) === n || norm(a.title) === n ? 0 : 1) - (norm(b.name) === n || norm(b.title) === n ? 0 : 1));
+      const alsoN = (c) => (c.also || []).some((a) => norm(a.name) === n);
+      const whole = (c) => (' ' + norm(c.aka || '') + ' ').includes(' ' + n + ' ') || norm(c.country || '') === n || (c.also || []).some((a) => norm(a.country || '') === n);
+      const same = (c) => norm(c.name) === n || norm(c.title) === n || alsoN(c);
+      const exact = list.filter((c) => same(c) || whole(c))
+        .sort((a, b) => (same(a) ? 0 : 1) - (same(b) ? 0 : 1));
       const main = exact.length && !list.some((c) => c.other) ? exact : list;
       const top = main.filter((c) => c.top), rest = main.filter((c) => !c.top);
       html += top.map((c) => card(c)).join('');
+      const cf = countryFill(q);
+      if (cf) html += cf.list.filter((c) => !main.includes(c)).map((c) => card(c, cf.name)).join('');
       if (state.more === q) html += rest.map((c) => card(c)).join('');
       else if (rest.length) html += `<button type="button" class="cv-more" data-more>Učitaj još</button>`;
-      if (!main.length) {
+      if (!main.length && !cf) {
         const fill = fillFor(q, main, state.fillMore && state.fillMore.q === q ? state.fillMore.n : 0);
         html += fill.map((c) => card(c, q)).join('');
         const total = COVERS.filter((c) => c.neutral && c.fig && c.fig.T.length).length;

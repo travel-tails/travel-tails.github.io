@@ -227,3 +227,24 @@ input, select { font: inherit; color: inherit; }
 .bprev { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .bprev svg { width: 150px; height: auto; border-radius: 4px; box-shadow: 0 8px 20px -10px var(--shadow); display: block; }
 .fields input[type=range] { padding: 0; height: 24px; }
+
+.fillbox { margin: 0 0 14px; padding: 10px 14px; border: 1.5px solid var(--sky-deep); border-radius: 14px; background: var(--panel); display: grid; gap: 4px; }
+.fillbox .switch b { font-weight: 600; font-size: 13.5px; }
+.main-head .btn.soft.small { margin-left: auto; }
+.card.via .thumb { outline: 2px dashed var(--sky-deep); outline-offset: -2px; }
+.card.via .card-foot b::before { content: '↗ '; color: var(--sky-deep); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; }
+.chip button { all: unset; cursor: pointer; width: 20px; height: 20px; text-align: center; border-radius: 50%; color: var(--muted); }
+.chip button:hover { background: #fff; color: var(--err); }
+.also { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.also h5 { margin: 0; font-size: 12.5px; }
+.also label { display: grid; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.also input { border: 1.5px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 13.5px; }
+.modal-card.wide { width: min(860px, 100%); }
+.modal-card > input[type=search] { border: 1.5px solid var(--line); border-radius: 9px; padding: 9px 12px; font-size: 14px; }
+.pickgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; max-height: 52vh; overflow-y: auto; padding: 4px; }
+.pk { all: unset; cursor: pointer; display: grid; gap: 4px; padding: 4px; border-radius: 12px; border: 2px solid transparent; font-size: 11.5px; font-weight: 600; color: var(--muted); text-align: center; }
+.pk .thumb { display: block; aspect-ratio: 2480 / 3508; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 12px -6px var(--shadow); }
+.pk.on { border-color: var(--blue); background: var(--panel); color: var(--ink); }
+.steps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; display: grid; gap: 6px; }

@@ -223,3 +223,7 @@ input, select { font: inherit; color: inherit; }
 
 .switch.std { margin: 2px 0 2px; }
 .switch.std input:checked + span { background: var(--blue); }
+
+.bprev { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.bprev svg { width: 150px; height: auto; border-radius: 4px; box-shadow: 0 8px 20px -10px var(--shadow); display: block; }
+.fields input[type=range] { padding: 0; height: 24px; }

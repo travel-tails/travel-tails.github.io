@@ -164,11 +164,30 @@
 <div class="modal" id="newModal" hidden>
   <form class="modal-card" id="newForm" novalidate>
     <h2>Novi dizajn</h2>
-    <div class="seg" id="newTabs">
-      <button type="button" data-tab="figma" class="on">Iz Figme (link)</button>
+    <div class="seg three" id="newTabs">
+      <button type="button" data-tab="build" class="on">Ilustracija + naslov</button>
       <button type="button" data-tab="png">Gotova slika</button>
+      <button type="button" data-tab="figma">Iz Figme</button>
     </div>
-    <div id="tabFigma">
+    <div id="tabBuild">
+      <label class="drop" id="bDrop">
+        <input type="file" id="bFile" accept="image/png,image/jpeg,image/webp" multiple>
+        <span id="bDropText"><b>Izaberi ilustraciju (može i više njih odjednom)</b><small>Najbolje PNG sa providnom pozadinom. Svaka slika postaje jedna korica. Naslov i godina se dodaju ispod i kupac ih može menjati.</small></span>
+      </label>
+      <div class="fields two">
+        <label>Naslov<input id="bTitle" autocomplete="off" placeholder="MILANO"></label>
+        <label>Godina<input id="bYear" autocomplete="off" value="2026"></label>
+        <label>Pozadina<input type="color" id="bBg" value="#f6c6d6"></label>
+        <label>Boja naslova<input type="color" id="bInk" value="#ffffff"></label>
+        <label>Boja godine<input type="color" id="bAcc" value="#b02f26"></label>
+        <label>Font<select id="bFont"></select></label>
+        <label>Veličina ilustracije<input type="range" id="bSize" min="40" max="130" value="100"></label>
+        <label>Visina ilustracije<input type="range" id="bPos" min="-400" max="400" value="0"></label>
+      </div>
+      <div id="bPrev" class="bprev"></div>
+      <p class="note">Čim izabereš sliku vidiš kako korica izgleda. Posle dodavanja možeš još da pomeraš naslov i sliku u uređivanju.</p>
+    </div>
+    <div id="tabFigma" hidden>
       <label class="full">Linkovi okvira iz Figme, svaki u novom redu<textarea id="figLinks" rows="4" spellcheck="false"></textarea></label>
       <p class="note">U Figmi izaberi okvir korice (A4) → desni klik → Copy/Paste as → Copy link to selection. Ilustracija, naslov i godina se prenose tačno kao u Figmi, a kupac i dalje može da menja naslov i godinu.</p>
       <label class="full">Figma token<input id="figToken" type="password" autocomplete="off" spellcheck="false"></label>

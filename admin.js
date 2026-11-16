@@ -518,7 +518,7 @@
   const TOKEN_KEY = 'tt-figma-token';
   const NOT_WEB = new Set(['Rockwell Extra Bold', 'Rage Italic', 'Times New Roman', 'Sansation', 'Sansation Light', 'Monotype Corsiva', 'Cooper Black', 'Segoe Print', 'CaghenDemo', 'Recursive']);
   const hex = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
-  let newTab = 'figma', pngFile = null;
+  let newTab = 'build', pngFile = null;
   function status(msg, bad) { const s = $('#newStatus'); s.textContent = msg; s.classList.toggle('bad', !!bad); }
   $('#addBtn').onclick = () => {
     $('#newForm').reset();
@@ -531,7 +531,12 @@
     $('#nTravel').hidden = false; $('#nOther').hidden = true;
     $('#newOk').disabled = false;
     $('#newModal').hidden = false;
-    $('#figLinks').focus();
+    bReset();
+    $$('#newTabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === 'build'));
+    newTab = 'build';
+    $('#tabBuild').hidden = false; $('#tabFigma').hidden = true; $('#tabPng').hidden = true;
+    $('#newOk').textContent = 'Dodaj kao skicu';
+    $('#bTitle').focus();
   };
   $('#newCancel').onclick = () => ($('#newModal').hidden = true);
   $('#newTabs').addEventListener('click', (e) => {
@@ -539,9 +544,11 @@
     if (!b) return;
     newTab = b.dataset.tab;
     $$('#newTabs button').forEach((x) => x.classList.toggle('on', x === b));
+    $('#tabBuild').hidden = newTab !== 'build';
     $('#tabFigma').hidden = newTab !== 'figma';
     $('#tabPng').hidden = newTab !== 'png';
     $('#newOk').textContent = newTab === 'figma' ? 'Uvezi kao skicu' : 'Dodaj kao skicu';
+    if (newTab === 'build') bPreview();
   });
   $('#nKind').addEventListener('click', (e) => {
     const b = e.target.closest('[data-kind]');
@@ -729,13 +736,115 @@
     addCover(n);
     return n;
   }
+
+  /* ---------- novi dizajn: ilustracija + naslov (korica ostaje potpuno uređiva) ---------- */
+  let bBmps = [], bTimer = null;
+  const bFonts = () => ['Raleway'].concat(Object.keys((window.TT_DATA || {}).fonts || {}).filter((f) => f !== 'Raleway'));
+  const bWeight = (f) => { const w = ((window.TT_DATA || {}).fonts || {})[f]; return f === 'Raleway' || !w ? 900 : Math.max(...w); };
+  function bReset() {
+    bBmps = [];
+    $('#bFile').value = '';
+    $('#bPrev').innerHTML = '';
+    $('#bDropText').innerHTML = '<b>Izaberi ilustraciju (može i više njih odjednom)</b><small>Najbolje PNG sa providnom pozadinom. Svaka slika postaje jedna korica. Naslov i godina se dodaju ispod i kupac ih može menjati.</small>';
+    $('#bSize').value = 100; $('#bPos').value = 0;
+    const sel = $('#bFont');
+    if (!sel.options.length) bFonts().forEach((f) => sel.add(new Option(f, f)));
+  }
+  function bCompose(bmp) {
+    const PW = TTF.PW, PH = TTF.PH, k = $('#bSize').value / 100;
+    const cv = document.createElement('canvas');
+    cv.width = PW; cv.height = PH;
+    const maxW = 1900 * k, maxH = 2100 * k;
+    const r = Math.min(maxW / bmp.width, maxH / bmp.height), w = bmp.width * r, h = bmp.height * r;
+    const g = cv.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(bmp, (PW - w) / 2, 2300 + Number($('#bPos').value) - h / 2, w, h);
+    return cv;
+  }
+  async function bTexts() {
+    const PW = TTF.PW, fam = $('#bFont').value || 'Raleway', wt = bWeight(fam);
+    const title = $('#bTitle').value.trim(), year = $('#bYear').value.trim();
+    if (!title) return [];
+    await document.fonts.load(`${wt} 100px '${fam}'`).catch(() => {});
+    await document.fonts.load(`800 100px '${fam}'`).catch(() => {});
+    const m = (window.TT_FONT_METRICS || {})[fam] || [0.94, 1.174];
+    const g = document.createElement('canvas').getContext('2d');
+    const meas = (font, ls, s) => { g.font = font; g.letterSpacing = ls + 'px'; return g.measureText(s).width; };
+    const T = [], up = title.toLocaleUpperCase('sr');
+    const w100 = meas(`${wt} 100px '${fam}'`, -4, up);
+    const z = Math.round(Math.min(900, (2240 / w100) * 100) * 10) / 10, ls = -0.04 * z;
+    const w = Math.round(meas(`${wt} ${z}px '${fam}'`, ls, up)), h = Math.round(m[1] * z), x = Math.round((PW - w) / 2), y = 100;
+    const base = (o) => Object.assign({ lh: 0, a: 'L', up: 0 }, o, fam !== 'Raleway' ? { f: fam } : {});
+    T.push(base({ r: 't', s: up, x, y, w, h, wt, z, ls, c: $('#bInk').value, up: 1 }));
+    if (year) {
+      const yz = Math.round(Math.min(320, z * 0.3) * 10) / 10, yls = -0.06 * yz;
+      const yw = Math.round(meas(`800 ${yz}px '${fam}'`, yls, year));
+      const tb = y + m[0] * z;
+      T.push(base({ r: 'y', s: year, x: x + w - yw, y: Math.round(tb + 25 - m[0] * yz + yz * 0.71), w: yw, h: Math.round(m[1] * yz), wt: 800, z: yz, ls: yls, c: $('#bAcc').value }));
+    }
+    return T;
+  }
+  function bPreview() {
+    clearTimeout(bTimer);
+    bTimer = setTimeout(async () => {
+      const box = $('#bPrev');
+      if (!bBmps.length) { box.innerHTML = ''; return; }
+      const T = await bTexts();
+      box.innerHTML = '';
+      for (const bmp of bBmps.slice(0, 4)) {
+        const cv = bCompose(bmp), sm = document.createElement('canvas');
+        sm.width = 360; sm.height = Math.round((360 * cv.height) / cv.width);
+        sm.getContext('2d').drawImage(cv, 0, 0, sm.width, sm.height);
+        const n = { id: 'prev', title: $('#bTitle').value, name: '', bg: $('#bBg').value, ink: $('#bInk').value, accent: $('#bAcc').value, fig: { art: sm.toDataURL('image/webp', 0.8), T, bb: [0, 0, TTF.PW, TTF.PH] } };
+        const d = document.createElement('div');
+        d.innerHTML = TTF.figmaSVG(n);
+        box.appendChild(d.firstChild);
+      }
+      if (bBmps.length > 4) { const p = document.createElement('p'); p.className = 'note'; p.textContent = `+ još ${bBmps.length - 4} (isti naslov i boje)`; box.appendChild(p); }
+    }, 120);
+  }
+  $('#bFile').addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    bBmps = [];
+    for (const f of files) { try { bBmps.push(await createImageBitmap(f)); } catch (err) { toast('Slika „' + f.name + '“ ne može da se otvori.'); } }
+    if (!bBmps.length) return;
+    $('#bDropText').innerHTML = `<b>Izabrano: ${bBmps.length}</b><small>Klikni da izabereš druge.</small>`;
+    // pozadina iz slike (ako je ugao neproziran)
+    const t = document.createElement('canvas'); t.width = t.height = 1;
+    const g = t.getContext('2d'); g.drawImage(bBmps[0], 2, 2, 1, 1, 0, 0, 1, 1);
+    const px = g.getImageData(0, 0, 1, 1).data;
+    if (px[3] > 240) $('#bBg').value = '#' + [px[0], px[1], px[2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+    if (bBmps[0].width < 1000) toast('Slika je mala (manja od 1000 px) – u štampi može biti mutna.');
+    bPreview();
+  });
+  ['#bTitle', '#bYear', '#bBg', '#bInk', '#bAcc', '#bFont', '#bSize', '#bPos'].forEach((q) => { $(q).addEventListener('input', bPreview); $(q).addEventListener('change', bPreview); });
+  async function buildCovers() {
+    if (!bBmps.length) throw new Error('Izaberi bar jednu ilustraciju.');
+    if (!$('#bTitle').value.trim()) throw new Error('Upiši naslov korice (npr. MILANO).');
+    const T = await bTexts(), title = T[0].s, out = [];
+    for (let i = 0; i < bBmps.length; i++) {
+      status(`Pravim ${i + 1} od ${bBmps.length}…`);
+      const cv = bCompose(bBmps[i]);
+      const id = 'n' + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 4);
+      const art = await storeArt(id, cv);
+      const n = Object.assign({
+        id, title, sub: '', year: $('#bYear').value.trim(), bg: $('#bBg').value, ink: $('#bInk').value, accent: $('#bAcc').value,
+        fig: { art, T: JSON.parse(JSON.stringify(T)), bb: alphaBox(cv) }, src: 'build',
+      }, placementFor(title));
+      addCover(n);
+      out.push(n);
+    }
+    return out;
+  }
   $('#newForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = $('#newOk');
     btn.disabled = true;
     const made = [];
     try {
-      if (newTab === 'figma') {
+      if (newTab === 'build') {
+        made.push(...(await buildCovers()));
+      } else if (newTab === 'figma') {
         const token = $('#figToken').value.trim();
         const links = $('#figLinks').value.split(/\s+/).filter((l) => /figma\.com/.test(l));
         if (!token) throw new Error('Upiši Figma token.');
@@ -853,7 +962,21 @@
     if (!b) return;
     $('#menuList').hidden = true;
     const act = b.dataset.act;
-    if (act === 'config') download('covers-config.js', '/* Objavljena podešavanja korica iz admin panela. */\nwindow.TT_CATALOG = ' + JSON.stringify(pub) + ';\n', 'text/javascript');
+    if (act === 'config') (async () => {
+      // nove korice nose i pun kvalitet (A4) u fajlu, da štampa kod kupca ne bude mutna
+      const out = clone(pub);
+      for (const n of out.added || []) {
+        try {
+          const blob = await catalog.idbGet(n.id);
+          if (!blob) continue;
+          const bmp = await createImageBitmap(blob), cv = document.createElement('canvas');
+          cv.width = bmp.width; cv.height = bmp.height;
+          cv.getContext('2d').drawImage(bmp, 0, 0);
+          n.fig.master = cv.toDataURL('image/webp', 0.97);
+        } catch (err) { /* ostaje slika za sajt */ }
+      }
+      download('covers-config.js', '/* Objavljena podešavanja korica iz admin panela. */\nwindow.TT_CATALOG = ' + JSON.stringify(out) + ';\n', 'text/javascript');
+    })();
     if (act === 'export') download(`korice-rezerva-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(draft), 'application/json');
     if (act === 'import') $('#importFile').click();
     if (act === 'discard') { snap(); draft = clone(pub); if (!draft.feat) draft.feat = catalog.DEF_FEAT.slice(); draft.added = draft.added || []; draft.covers = draft.covers || {}; reapply(); save(); renderAll(); toast('Vraćeno na objavljenu verziju.'); }

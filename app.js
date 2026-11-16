@@ -2,7 +2,10 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261116b';
+  const APP_VER = '20261116c';
+  // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
+  const trackedEv = new Set();
+  const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
 
   const { COVERS, CUSTOM, TEMPLATES, coverSVG, backSVG, spineSVG } = window.TT;
   const MIN = 40, MAX = 140, STEP = 4, FH = 297 / 210, FRAME = 0.05;
@@ -149,6 +152,9 @@
       for (let s = state.step; s < n; s++) if (!validate(s)) { if (s !== state.step) goTo(s, true); return; }
     }
     state.step = n;
+    if (n === 2) track('ViewContent', { content_name: 'Korice' });
+    if (n === 3) track('AddToCart', { content_name: 'Izabrane korice' });
+    if (n === 4) track('InitiateCheckout');
     if (n <= 4) state.reached = Math.max(state.reached, n);
     $('#app').dataset.step = n;
     $$('.step').forEach((s) => s.classList.toggle('on', s.id === 'step-' + n));
@@ -1695,6 +1701,7 @@
     $('#sending').hidden = true;
     state.sending = false;
     state.sent = true;
+    track('Purchase', { value: state.books.reduce((s, x) => s + priceFor(x.plan), 0), currency: 'RSD' });
     const first = state.name.trim().split(/\s+/)[0];
     $('#doneTitle').textContent = `Hvala, ${first}!`;
     $('#doneShip').textContent = state.ship === 'pickup' ? 'Lično preuzimanje, Novi Sad' : 'Brza pošta, sutradan';

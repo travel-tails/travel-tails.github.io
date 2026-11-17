@@ -613,3 +613,35 @@ input[type=range]:not(.plan-range) { width: 100%; accent-color: var(--sky-deep);
 .send-err { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #fdecea; color: var(--err); font-size: 14px; }
 .send-err p { margin: 0 0 10px; }
 .send-err div { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Kolaž */
+.col-page { position: relative; overflow: hidden; background: #fff; box-shadow: 0 22px 50px -18px var(--shadow); touch-action: none; }
+.col-cell { position: absolute; overflow: hidden; box-sizing: border-box; background: #eef6fb; cursor: move; }
+.col-cell img { position: absolute; max-width: none; height: auto; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.col-cell.on { outline: 3px solid var(--blue); outline-offset: -3px; z-index: 2; }
+.col-cell .col-plus { position: absolute; inset: 0; display: grid; place-items: center; color: var(--blue); font-size: 34px; font-weight: 300; cursor: pointer; }
+.col-layouts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.col-layouts button { all: unset; cursor: pointer; box-sizing: border-box; border: 1.5px solid var(--line, #d7e3ec); border-radius: 8px; padding: 5px; background: #fff; display: grid; place-items: center; }
+.col-layouts button svg { width: 100%; height: auto; display: block; }
+.col-layouts button svg rect { fill: #cfe3f1; }
+.col-layouts button.on { border-color: var(--blue); background: var(--sky-wash, #eaf6fd); }
+.col-layouts button.on svg rect { fill: var(--blue); }
+.col-layouts button:focus-visible { outline: 2.5px solid var(--sky-deep); outline-offset: 2px; }
+.col-zoom { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.col-zoom input { width: 100%; }
+.col-tool-row { display: flex; gap: 8px; }
+.col-tool-row .btn { flex: 1; }
+.slot .col-tag { position: absolute; left: 6px; bottom: 6px; z-index: 3; background: rgba(21, 58, 85, .86); color: #fff; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; letter-spacing: .02em; }
+#colTools[hidden], #colEd[hidden] { display: none; }
+#colTools { display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 820px) {
+  .col-layouts { grid-template-columns: repeat(6, 1fr); gap: 5px; }
+  .col-layouts button { padding: 3px; }
+  .col-layouts button svg { max-height: 42px; }
+  .col-tool-row .btn { padding: 8px 10px; }
+}
+#colEd .ed-side > * { flex-shrink: 0; }
+#colEd .be-pick { max-height: 200px; }
+
+#colNote.warn { color: #b3261e; font-weight: 600; }
+#colNote.ok { color: #1a7a4a; font-weight: 600; }

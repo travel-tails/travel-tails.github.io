@@ -318,9 +318,44 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.300 6.300"/><path d="M20 4v7h-7"/></svg>
         Rotiraj
       </button>
+      <button class="btn soft" id="edCollage" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.500"/><rect x="13" y="3" width="8" height="8" rx="1.500"/><rect x="3" y="13" width="18" height="8" rx="1.500"/></svg>
+        Napravi kolaž
+      </button>
+      <p class="help" style="margin:-4px 0 0">Stavi više fotografija na jednu stranu. Možeš da dodaš nove ili da uzmeš one koje si već ubacio.</p>
       <div class="ed-actions">
         <button class="link" id="edReset" type="button">Vrati original</button>
         <button class="link danger" id="edRemove" type="button">Ukloni fotografiju</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- KOLAŽ -->
+<div class="modal editor" id="colEd" role="dialog" aria-modal="true" aria-label="Kolaž" hidden>
+  <header class="ed-head">
+    <button class="btn ghost" id="colClose" type="button">← Nazad</button>
+    <span id="colTitle">Kolaž</span>
+    <button class="btn primary" id="colDone" type="button">Gotovo</button>
+  </header>
+  <div class="ed-body">
+    <div class="ed-stage" id="colStage"><div class="col-page" id="colPage"></div></div>
+    <aside class="ed-side">
+      <span class="lbl">Raspored</span>
+      <div class="col-layouts" id="colLayouts"></div>
+      <span class="lbl">Fotografije</span>
+      <p class="help be-help" id="colHelp">Dodirni mesto na strani, pa izaberi fotografiju. Nove dodaješ sa + (telefon ili računar), a možeš i da uzmeš one koje si već ubacio. Fotografiju pomeraš prstom unutar mesta.</p>
+      <div class="be-pick" id="colPick"></div>
+      <input type="file" id="colFile" multiple accept="image/*,.heic,.heif" hidden>
+      <p class="help" id="colNote"></p>
+      <label class="switch"><input type="checkbox" id="colGap" checked><i></i><span>Beli razmak i okvir</span></label>
+      <div id="colTools" hidden>
+        <span class="lbl">Izabrana fotografija</span>
+        <label class="col-zoom"><span>Zumiraj</span><input type="range" id="colZoom" min="100" max="300" value="100"></label>
+        <div class="col-tool-row">
+          <button class="btn soft" id="colRot" type="button">Rotiraj</button>
+          <button class="btn ghost" id="colClear" type="button">Izbaci sliku</button>
+        </div>
       </div>
     </aside>
   </div>
@@ -388,12 +423,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="covers-data.js?v=20261117a"></script>
-<script src="places-data.js?v=20261117a"></script>
-<script src="figma.js?v=20261117a"></script>
-<script src="covers.js?v=20261117a"></script>
-<script src="covers-config.js?v=20261117a"></script>
-<script src="catalog.js?v=20261117a"></script>
-<script src="app.js?v=20261117a"></script>
+<script src="covers-data.js?v=20261117b"></script>
+<script src="places-data.js?v=20261117b"></script>
+<script src="figma.js?v=20261117b"></script>
+<script src="covers.js?v=20261117b"></script>
+<script src="covers-config.js?v=20261117b"></script>
+<script src="catalog.js?v=20261117b"></script>
+<script src="app.js?v=20261117b"></script>
 </body>
 </html>

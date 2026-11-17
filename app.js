@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261117b';
+  const APP_VER = '20261117c';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -1794,6 +1794,7 @@
   function photoNotes(b) {
     return photoItems(b).map(({ filename, p }) => {
       const c = p.crop || {}, notes = [];
+      if (p.kind === 'collage') notes.push(`KOLAŽ od ${p.cells.length} fotografija (već spojen u jednu A4 sliku)`);
       if (c.rot) notes.push(`rotirana ${c.rot}°`);
       if (c.frame) notes.push('beli okvir');
       if (Math.abs((c.cx ?? 0.5) - 0.5) > 0.01 || Math.abs((c.cy ?? 0.5) - 0.5) > 0.01) notes.push(`isečak pomeren (centar ${Math.round((c.cx ?? 0.5) * 100)}% / ${Math.round((c.cy ?? 0.5) * 100)}%)`);

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261117c';
+  const APP_VER = '20261117d';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -1187,7 +1187,7 @@
   const newCell = (ph) => ({ ph: ph || null, cx: 0.5, cy: 0.5, zoom: 1, rot: 0 });
   function openCollage(item, seed) {
     const b = book();
-    col = { item: item || null, seed: seed || null, layout: item ? item.layout : '2v', gap: item ? item.gap : true, cells: [], sel: 0, extra: [], parts: item ? item.parts.slice() : [] };
+    col = { item: item || null, seed: seed || null, layout: item ? item.layout : '2v', gap: item ? item.gap : false, cells: [], sel: 0, extra: [], parts: item ? item.parts.slice() : [] };
     if (item) col.cells = item.cells.map((c) => Object.assign({}, c));
     else col.cells = COL[col.layout].map((_, i) => newCell(i === 0 ? seed : null));
     col.sel = Math.max(0, col.cells.findIndex((c) => !c.ph));

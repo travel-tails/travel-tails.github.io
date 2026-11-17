@@ -63,7 +63,7 @@
     });
     const feat = (cfg.feat || DEF_FEAT).filter((id) => all.some((c) => c.id === id && c.st === 'live'));
     all.forEach((c) => { c.featIdx = feat.indexOf(c.id); });
-    return { all, feat, fill: copy(cfg.countryFill) || {} };
+    return { all, feat, fill: copy(cfg.countryFill) || {}, places: copy(cfg.places) || [], themes: copy(cfg.themes) || [] };
   }
 
   const isAdmin = /admin\.html$/.test(location.pathname);
@@ -71,6 +71,7 @@
   const res = apply(cfg);
   TT.ALL = res.all;
   TT.FILL = res.fill;
+  TT.ADDED = { places: res.places, themes: res.themes };
   TT.FEAT = res.feat;
   if (!isAdmin) {
     // sajt vidi samo objavljene korice

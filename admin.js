@@ -12,6 +12,9 @@
   const CONTS = [['evropa', 'Evropa'], ['azija', 'Azija'], ['afrika', 'Afrika'], ['amerika', 'Amerika'], ['australija', 'Australija']];
   const CATS = [['rodj', 'Rođendani'], ['krst', 'Krštenja'], ['deca', 'Bebe i deca'], ['venc', 'Venčanja'], ['ljub', 'Ljubav'], ['drug', 'Drugarice'], ['porod', 'Porodica'], ['usp', 'Uspomene']];
 
+  const BASE_CATS = CATS.length;
+  const syncCats = () => { CATS.length = BASE_CATS; (draft.themes || []).forEach((t) => CATS.push([t.k, t.t])); };
+  const isCustomTheme = (k) => (draft.themes || []).some((t) => t.k === k);
   let toastT;
   function toast(msg, withUndo) {
     const t = $('#toast');
@@ -42,7 +45,7 @@
   }
 
   /* ---------- stanje ---------- */
-  const empty = () => ({ ver: catalog.VER, covers: {}, feat: catalog.DEF_FEAT.slice(), added: [], countryFill: {} });
+  const empty = () => ({ ver: catalog.VER, covers: {}, feat: catalog.DEF_FEAT.slice(), added: [], countryFill: {}, places: [], themes: [] });
   // podešavanja za stari skup korica se brišu (novi skup ima drugu verziju)
   Object.values(KEYS).forEach((k) => { try { if (localStorage.getItem(k) && !catalog.read(k)) localStorage.removeItem(k); } catch (e) { /* ignore */ } });
   let pub = catalog.read(KEYS.pub) || clone(catalog.valid(window.TT_CATALOG) || empty());
@@ -52,6 +55,9 @@
   if (!draft.added) draft.added = [];
   if (!draft.covers) draft.covers = {};
   if (!draft.countryFill) draft.countryFill = {};
+  if (!draft.places) draft.places = [];
+  if (!draft.themes) draft.themes = [];
+  syncCats();
   let ALL = TT.ALL;
   const ui = { view: 'all', st: 'any', group: '', q: '', cur: null, picked: new Set(), list: [] };
   /* Poništi / Ponovi (Cmd+Z / Cmd+Shift+Z) */
@@ -66,7 +72,7 @@
     fut.length = 0;
     renderUndo();
   }
-  function restore(json) { draft = JSON.parse(json); reapply(); save(); renderAll(); }
+  function restore(json) { draft = JSON.parse(json); syncCats(); reapply(); save(); renderAll(); }
   function undo() { if (!hist.length) return; fut.push(JSON.stringify(draft)); restore(hist.pop()); lastSnap = { tag: '', t: 0 }; renderUndo(); toast('Poništeno'); }
   function redo() { if (!fut.length) return; hist.push(JSON.stringify(draft)); restore(fut.pop()); renderUndo(); toast('Vraćeno'); }
   function renderUndo() { $('#undoBtn').disabled = !hist.length; $('#redoBtn').disabled = !fut.length; }
@@ -119,6 +125,7 @@
     ids.forEach((id) => { if (JSON.stringify(draft.covers[id] || {}) !== JSON.stringify((pub.covers || {})[id] || {})) n++; });
     if (JSON.stringify(draft.feat) !== JSON.stringify(pub.feat || catalog.DEF_FEAT)) n++;
     if (JSON.stringify(draft.countryFill || {}) !== JSON.stringify(pub.countryFill || {})) n++;
+    if (JSON.stringify([draft.places || [], draft.themes || []]) !== JSON.stringify([pub.places || [], pub.themes || []])) n++;
     if (JSON.stringify(draft.added) !== JSON.stringify(pub.added || [])) n += Math.max(1, Math.abs(draft.added.length - (pub.added || []).length));
     return n;
   }
@@ -134,7 +141,8 @@
   function renderGroups() {
     const vis = ALL.filter(visible);
     const ent = vis.flatMap((c) => placesOf(c).map((p) => ({ c, p })));
-    const uniq = (es) => { const s = new Set(); return es.filter((e) => !s.has(e.c.id) && s.add(e.c.id)).map((e) => e.c); };
+    if (ui.st !== 'del') (draft.places || []).forEach((pl) => ent.push({ c: null, p: Object.assign({ other: false }, pl) }));
+    const uniq = (es) => { const s = new Set(); return es.filter((e) => e.c && !s.has(e.c.id) && s.add(e.c.id)).map((e) => e.c); };
     const cnt = (list) => ({ all: list.length, live: list.filter((c) => c.st === 'live').length });
     const btn = (k, label, list, cls = '') => `<button type="button" data-g="${esc(k)}" class="${cls} ${ui.group === k ? 'on' : ''}"><span>${esc(label)}</span><small>${ui.st === 'del' ? list.length : cnt(list).live + '/' + list.length}</small></button>`;
     let html = btn('', 'Sve grupe', vis);
@@ -152,7 +160,7 @@
         if (places.size && open === name) html += [...places].map(([p, l]) => [p, uniq(l)]).sort((a, b) => b[1].length - a[1].length).map(([p, l]) => btn('p:' + p, p, l, 'place')).join('');
       });
     });
-    const themes = CATS.filter(([k]) => ent.some((e) => e.p.other && (e.p.cat || [])[0] === k));
+    const themes = CATS.filter(([k]) => isCustomTheme(k) || ent.some((e) => e.p.other && (e.p.cat || [])[0] === k));
     if (themes.length) html += '<h4><span>Teme</span></h4>' + themes.map(([k, t]) => btn('t:' + k, t, uniq(ent.filter((e) => e.p.other && (e.p.cat || [])[0] === k)))).join('');
     $('#groups').innerHTML = html;
   }
@@ -216,6 +224,7 @@
     $('#mainHint').textContent = ui.view === 'pop' ? `${ui.list.length} korica · prevuci da promeniš redosled na sajtu` : ui.st === 'del' ? `${ui.list.length} obrisanih · ne vide se na sajtu; vrati ih strelicom ili „Isprazni korpu“` : `${ui.list.length} korica · klik = uređivanje · kvadratić ili ⌘-klik = izbor više · ⌘Z = poništi`;
     $('#emptyTrash').hidden = !(ui.st === 'del' && ui.list.length);
     $('#pullBtn').hidden = !(ui.view === 'all' && ui.st !== 'del' && /^[kpt]:/.test(ui.group));
+    renderGTools();
     renderFill();
     $('#grid').innerHTML = ui.list.length ? ui.list.map(cardHTML).join('') : '<p class="empty">Nema korica za ovaj izbor.</p>';
     if (sortable) { sortable.destroy(); sortable = null; }
@@ -482,10 +491,11 @@
   const onField = (sel, fn) => $(sel).addEventListener('change', () => { if (!ui.cur) return; fn($(sel).value.trim()); fillEdit(); refreshCard(ui.cur); renderGroups(); });
   onField('#ePlace', (v) => {
     if (!v) return;
-    const same = ALL.find((c) => !c.other && norm(c.name) === norm(v));
-    setOv(ui.cur, { name: v, country: same ? same.country : $('#eCountry').value.trim(), cont: same ? same.cont : $('#eCont').value });
+    const same = ALL.find((c) => !c.other && norm(c.name) === norm(v)) || (draft.places || []).find((p) => norm(p.name) === norm(v));
+    const wd = !same && worldFind(v);
+    setOv(ui.cur, { name: v, country: same ? same.country : wd ? wd.country : $('#eCountry').value.trim(), cont: same ? same.cont : wd ? wd.cont : $('#eCont').value });
   });
-  onField('#eCountry', (v) => setOv(ui.cur, { country: v }));
+  onField('#eCountry', (v) => { const k = countryCont(v); setOv(ui.cur, k ? { country: v, cont: k } : { country: v }); });
   onField('#eCont', (v) => setOv(ui.cur, { cont: v }));
   onField('#eThemeName', (v) => v && setOv(ui.cur, { name: v }));
   onField('#eCat', (v) => setOv(ui.cur, { cat: [v] }));
@@ -583,8 +593,9 @@
     if (other) return { other: true, cat: [$('#nCat').value], name: $('#nThemeName').value.trim() || title };
     const place = $('#nPlace').value.trim();
     if (place) {
-      const same = ALL.find((c) => !c.other && norm(c.name) === norm(place));
-      return { name: place, country: $('#nCountry').value.trim() || (same && same.country) || '', cont: $('#nCont').value || (same && same.cont) || 'evropa' };
+      const same = ALL.find((c) => !c.other && norm(c.name) === norm(place)) || (draft.places || []).find((p) => norm(p.name) === norm(place));
+      const wd = !same && worldFind(place);
+      return { name: place, country: $('#nCountry').value.trim() || (same && same.country) || (wd && wd.country) || '', cont: $('#nCont').value || (same && same.cont) || (wd && wd.cont) || 'evropa' };
     }
     const like = ALL.find((c) => norm(c.title) === norm(title)) || ALL.find((c) => norm(c.name) === norm(title));
     if (like) return like.other ? { other: true, cat: like.cat.slice(), name: like.name } : { name: like.name, country: like.country || '', cont: like.cont || 'evropa' };
@@ -952,7 +963,7 @@
     const g = ui.group;
     if (!g) return '';
     if (g[0] === 'k') return g.slice(2);
-    if (g[0] === 'p') { const e = ALL.flatMap(placesOf).find((p) => !p.other && p.name === g.slice(2)); return e ? e.country || '' : ''; }
+    if (g[0] === 'p') { const e = ALL.flatMap(placesOf).concat(draft.places || []).find((p) => !p.other && p.name === g.slice(2)); return e ? e.country || '' : ''; }
     return '';
   };
   function renderFill() {
@@ -983,9 +994,11 @@
     if (!n) return null;
     const th = CATS.find(([k, t]) => norm(t) === n || k === n);
     if (th) return { other: true, cat: [th[0]], name: th[1] };
-    const all = ALL.flatMap(placesOf).filter((p) => !p.other);
+    const all = ALL.flatMap(placesOf).filter((p) => !p.other).concat(draft.places || []);
     const hit = all.find((p) => norm(p.name) === n);
     if (hit) return { name: hit.name, country: hit.country || '', cont: contOf(hit) };
+    const wd = worldFind(v);
+    if (wd) return { name: wd.name, country: wd.country, cont: wd.cont };
     const ct = all.find((p) => norm(p.country || '') === n);
     if (ct) return { name: ct.country, country: '', cont: contOf(ct) };
     return { name: String(v).trim(), country: '', cont: 'evropa' };
@@ -993,7 +1006,7 @@
   function placementOfGroup(g) {
     const v = g.slice(2);
     if (g[0] === 't') return { other: true, cat: [v], name: (CATS.find(([k]) => k === v) || ['', v])[1] };
-    const all = ALL.flatMap(placesOf).filter((p) => !p.other);
+    const all = ALL.flatMap(placesOf).filter((p) => !p.other).concat(draft.places || []);
     if (g[0] === 'p') { const e = all.find((p) => p.name === v); return { name: v, country: e ? e.country || '' : '', cont: e ? contOf(e) : 'evropa' }; }
     if (g[0] === 'k') { const e = all.find((p) => countryOf(p) === v); return { name: v, country: '', cont: e ? contOf(e) : 'evropa' }; }
     return null;
@@ -1102,6 +1115,132 @@
   $('#ghClear').onclick = () => { localStorage.removeItem(GH_KEY); $('#ghStatus').textContent = 'Token je uklonjen.'; };
   $('#ghCancel').onclick = () => ($('#ghModal').hidden = true);
 
+
+  /* ---------- mesta sveta (places-data.js), nova mesta i teme, preimenovanje ---------- */
+  let WIDX = null;
+  function worldFind(name) {
+    const W = window.TT_WORLD;
+    if (!W || !name) return null;
+    if (!WIDX) {
+      WIDX = new Map();
+      W.p.forEach((s) => {
+        const [n, ci, eng] = s.split('|'), o = { name: n, country: W.c[+ci], cont: W.k[+ci] };
+        if (!WIDX.has(norm(n))) WIDX.set(norm(n), o);
+        if (eng && !WIDX.has(norm(eng))) WIDX.set(norm(eng), o);
+      });
+    }
+    return WIDX.get(norm(name)) || null;
+  }
+  const countryCont = (cn) => { const W = window.TT_WORLD, i = W ? W.c.indexOf(cn) : -1; return i >= 0 ? W.k[i] : null; };
+  function fillLists() {
+    const opts = (arr) => arr.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
+    const cur = $('#eCat').value;
+    $('#eCat').innerHTML = $('#nCat').innerHTML = opts(CATS);
+    if (cur) $('#eCat').value = cur;
+    const names = new Set(ALL.filter((c) => !c.other).flatMap((c) => [c.name, c.country]).filter(Boolean).concat(CATS.map(([, t]) => t), (draft.places || []).map((p) => p.name)));
+    $('#placeList').innerHTML = [...names].sort((a, b) => a.localeCompare(b, 'sr')).map((n) => `<option value="${esc(n)}">`).join('');
+    const countries = new Set(ALL.filter((c) => !c.other).map((c) => c.country).filter(Boolean).concat(window.TT_WORLD ? window.TT_WORLD.c : []));
+    $('#countryList').innerHTML = [...countries].sort((a, b) => a.localeCompare(b, 'sr')).map((n) => `<option value="${esc(n)}">`).join('');
+  }
+  let plKind = 'place';
+  $('#addPlaceBtn').onclick = () => {
+    $('#placeForm').reset(); plKind = 'place';
+    $$('#plTabs button').forEach((x) => x.classList.toggle('on', x.dataset.pk === 'place'));
+    $('#plPlace').hidden = false; $('#plTheme').hidden = true; $('#plStatus').textContent = '';
+    $('#placeModal').hidden = false; $('#plName').focus();
+  };
+  $('#plCancel').onclick = () => ($('#placeModal').hidden = true);
+  $('#plTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pk]'); if (!b) return;
+    plKind = b.dataset.pk;
+    $$('#plTabs button').forEach((x) => x.classList.toggle('on', x === b));
+    $('#plPlace').hidden = plKind !== 'place'; $('#plTheme').hidden = plKind !== 'theme';
+  });
+  const plAuto = () => {
+    const w = worldFind($('#plName').value);
+    if (w && !$('#plCountry').value) { $('#plCountry').value = w.country; $('#plCont').value = w.cont; }
+  };
+  $('#plName').addEventListener('change', plAuto);
+  $('#plCountry').addEventListener('change', () => { const k = countryCont($('#plCountry').value.trim()); if (k) $('#plCont').value = k; });
+  const slug = (s) => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'tema';
+  $('#placeForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const st = (m) => ($('#plStatus').textContent = m);
+    snap();
+    if (plKind === 'theme') {
+      const t = $('#plTName').value.trim();
+      if (!t) return st('Upiši naziv teme.');
+      if (CATS.some(([k, n]) => norm(n) === norm(t))) return st('Tema sa tim nazivom već postoji.');
+      let k = 'x-' + slug(t); while (CATS.some(([kk]) => kk === k)) k += '1';
+      draft.themes.push({ k, t });
+      syncCats(); save(); fillLists();
+      $('#placeModal').hidden = true; ui.group = 't:' + k; ui.view = 'all'; ui.st = 'any';
+      renderAll(); toast(`Tema „${t}“ je dodata. Korice joj dodaješ dugmetom „Dodaj koricu sa drugog mesta“.`);
+      return;
+    }
+    const name = $('#plName').value.trim();
+    if (!name) return st('Upiši naziv mesta.');
+    plAuto();
+    const country = $('#plCountry').value.trim();
+    if (draft.places.some((p) => norm(p.name) === norm(name) && norm(p.country || '') === norm(country)) || ALL.some((c) => !c.other && norm(c.name) === norm(name) && norm(c.country || '') === norm(country))) return st('To mesto već postoji.');
+    draft.places.push({ name, country, cont: $('#plCont').value, aka: $('#plAka').value.trim().toLowerCase() });
+    save(); fillLists();
+    $('#placeModal').hidden = true; ui.group = 'p:' + name; ui.view = 'all'; ui.st = 'any';
+    renderAll(); toast(`Mesto „${name}“ je dodato. Korice mu dodaješ dugmetom „Dodaj koricu sa drugog mesta“.`);
+  });
+
+  // preimenovanje i brisanje grupe (mesto, država, sopstvena tema)
+  function groupEmpty(g) { return !ALL.some((c) => inGroup(c, g)); }
+  function renderGTools() {
+    const g = ui.group, ok = /^[kp]:/.test(g) || (g[0] === 't' && isCustomTheme(g.slice(2)));
+    $('#gTools').hidden = !ok || ui.view !== 'all' || ui.st === 'del';
+    const custom = g[0] === 'p' ? (draft.places || []).some((p) => p.name === g.slice(2)) : g[0] === 't' && isCustomTheme(g.slice(2));
+    $('#delGrpBtn').hidden = !(custom && groupEmpty(g));
+  }
+  $('#renBtn').onclick = () => {
+    $('#renTitle').textContent = 'Preimenuj: ' + groupTitle();
+    $('#renName').value = groupTitle();
+    $('#renNote').textContent = ui.group[0] === 'k' ? 'Menja se država na svim koricama i mestima u njoj.' : ui.group[0] === 't' ? 'Menja se naziv teme.' : 'Menja se mesto na svim koricama u njemu.';
+    $('#renModal').hidden = false; $('#renName').select();
+  };
+  $('#renCancel').onclick = () => ($('#renModal').hidden = true);
+  $('#renForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const g = ui.group, old = g.slice(2), nn = $('#renName').value.trim();
+    if (!nn || nn === old) { $('#renModal').hidden = true; return; }
+    snap();
+    const sets = (id, patch) => { const o = Object.assign(draft.covers[id] || {}, patch); draft.covers[id] = o; };
+    const fixAlso = (c, fn) => { const also = (c.also || []).map((a) => fn(Object.assign({}, a))); if (JSON.stringify(also) !== JSON.stringify(c.also || [])) sets(c.id, { also }); };
+    if (g[0] === 't') {
+      draft.themes.forEach((t) => { if (t.k === old) t.t = nn; });
+      ALL.forEach((c) => { if (c.other && (c.cat || [])[0] === old) sets(c.id, { name: nn }); fixAlso(c, (a) => { if (a.other && (a.cat || [])[0] === old) a.name = nn; return a; }); });
+      syncCats(); ui.group = 't:' + old;
+    } else if (g[0] === 'p') {
+      ALL.forEach((c) => { if (!c.other && c.name === old) sets(c.id, { name: nn }); fixAlso(c, (a) => { if (!a.other && a.name === old) a.name = nn; return a; }); });
+      draft.places.forEach((p) => { if (p.name === old) p.name = nn; });
+      ui.group = 'p:' + nn;
+    } else {
+      ALL.forEach((c) => {
+        if (!c.other && c.country === old) sets(c.id, { country: nn });
+        if (!c.other && !c.country && c.name === old) sets(c.id, { name: nn });
+        fixAlso(c, (a) => { if (!a.other && a.country === old) a.country = nn; if (!a.other && !a.country && a.name === old) a.name = nn; return a; });
+      });
+      draft.places.forEach((p) => { if (p.country === old) p.country = nn; if (!p.country && p.name === old) p.name = nn; });
+      if (draft.countryFill[old]) { draft.countryFill[nn] = draft.countryFill[old]; delete draft.countryFill[old]; }
+      ui.group = 'k:' + nn;
+    }
+    reapply(); save(); fillLists();
+    $('#renModal').hidden = true; renderAll(); toast('Preimenovano', true);
+  });
+  $('#delGrpBtn').onclick = () => {
+    const g = ui.group;
+    if (!groupEmpty(g)) { toast('Prvo prebaci ili obriši korice iz ove grupe.'); return; }
+    snap();
+    if (g[0] === 'p') draft.places = draft.places.filter((p) => p.name !== g.slice(2));
+    if (g[0] === 't') { draft.themes = draft.themes.filter((t) => t.k !== g.slice(2)); syncCats(); }
+    ui.group = ''; save(); fillLists(); renderAll(); toast('Grupa je obrisana', true);
+  };
+
   /* ---------- objava i fajlovi ---------- */
   $('#publishBtn').onclick = () => {
     const live = ALL.filter((c) => c.st === 'live').length;
@@ -1147,7 +1286,7 @@
     if (act === 'config') buildConfig().then((t) => download('covers-config.js', t, 'text/javascript'));
     if (act === 'export') download(`korice-rezerva-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(draft), 'application/json');
     if (act === 'import') $('#importFile').click();
-    if (act === 'discard') { snap(); draft = clone(pub); if (!draft.feat) draft.feat = catalog.DEF_FEAT.slice(); draft.added = draft.added || []; draft.covers = draft.covers || {}; draft.countryFill = draft.countryFill || {}; reapply(); save(); renderAll(); toast('Vraćeno na objavljenu verziju.'); }
+    if (act === 'discard') { snap(); draft = clone(pub); if (!draft.feat) draft.feat = catalog.DEF_FEAT.slice(); draft.added = draft.added || []; draft.covers = draft.covers || {}; draft.countryFill = draft.countryFill || {}; draft.places = draft.places || []; draft.themes = draft.themes || []; syncCats(); fillLists(); reapply(); save(); renderAll(); toast('Vraćeno na objavljenu verziju.'); }
     if (act === 'logout') { sessionStorage.removeItem('tt-admin-ok'); location.reload(); }
   });
   $('#importFile').addEventListener('change', async (e) => {
@@ -1158,6 +1297,7 @@
       if (!d || typeof d.covers !== 'object') throw new Error('format');
       snap();
       draft = Object.assign(empty(), d, { ver: catalog.VER });
+      syncCats(); fillLists();
       reapply(); save(); renderAll();
       toast('Rezervna kopija je učitana (još nije objavljena).');
     } catch (err) { toast('Ovaj fajl nije rezervna kopija korica.'); }
@@ -1174,8 +1314,8 @@
   function start() {
     const opts = (arr) => arr.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
     $('#eCont').innerHTML = $('#nCont').innerHTML = opts(CONTS);
-    $('#eCat').innerHTML = $('#nCat').innerHTML = opts(CATS);
-    $('#placeList').innerHTML = [...new Set(ALL.filter((c) => !c.other).flatMap((c) => [c.name, c.country]).filter(Boolean).concat(CATS.map(([, t]) => t)))].sort((a, b) => a.localeCompare(b, 'sr')).map((n) => `<option value="${esc(n)}">`).join('');
+    $('#plCont').innerHTML = opts(CONTS);
+    fillLists();
     reapply();
     renderAll();
     renderUndo();

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261116c';
+  const APP_VER = '20261117a';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -238,11 +238,44 @@
       const k = norm(a.name);
       if (k && !m.has(k)) m.set(k, { name: a.name, sub: a.other ? 'Tema' : a.country || 'Država', aka: '', icon: a.other ? CAT_ICON[(a.cat || [])[0]] || 'heart' : a.country ? 'pin' : 'globe' });
     }));
-    return [...m.values()];
+    const norm1 = (s) => norm(s);
+    const arr = [...m.values()];
+    arr.forEach((p) => { p.w = 0; });
+    const byKey = new Map(arr.map((p) => [norm1(p.name) + '|' + norm1(p.sub), p]));
+    const have = new Set(byKey.keys());
+    const haveName = new Set(arr.filter((p) => p.sub === 'Država').map((p) => norm1(p.name)));
+    // mesta koja je admin dodao
+    ((TT.ADDED || {}).places || []).forEach((a) => {
+      const k = norm1(a.name) + '|' + norm1(a.country || 'Država');
+      if (!a.name || have.has(k)) return;
+      have.add(k);
+      arr.push({ name: a.name, sub: a.country || 'Država', aka: norm1(a.aka || ''), icon: a.country ? 'pin' : 'globe', w: 0 });
+    });
+    // celi svet (GeoNames): gradovi i turistička mesta
+    const W = window.TT_WORLD;
+    if (W) {
+      W.p.forEach((s, i) => {
+        const [name, ci, eng] = s.split('|'), sub = W.c[+ci], k = norm1(name) + '|' + norm1(sub);
+        if (have.has(k) || haveName.has(norm1(name))) {
+          const ex = byKey.get(k);
+          if (ex && eng && !(' ' + ex.aka + ' ').includes(' ' + norm1(eng) + ' ')) { ex.aka = (ex.aka ? ex.aka + ' ' : '') + norm1(eng); }
+          if (ex && eng) ex._al = norm1(eng);
+          return;
+        }
+        have.add(k);
+        const e = { name, sub, aka: eng ? norm1(eng) : '', icon: 'pin', w: i + 1, _al: eng ? norm1(eng) : '' };
+        byKey.set(k, e);
+        arr.push(e);
+      });
+    }
+    arr.forEach((p) => { p._n = norm1(p.name); p._s = norm1(p.sub); p._a = p.aka ? p.aka.split(' ') : []; p._w = p._n.split(' '); });
+    return arr;
   })();
+  const PLACE_BY = new Map();
+  PLACES.forEach((p) => { if (!PLACE_BY.has(p._n)) PLACE_BY.set(p._n, p); });
   // admin: za neke države se za svako mesto u njoj nude korice cele države (menja se samo tekst)
   function countryFill(q) {
-    const n = norm(q), p = PLACES.find((x) => norm(x.name) === n);
+    const n = norm(q), p = PLACE_BY.get(n);
     if (!p || p.sub === 'Država' || p.sub === 'Tema' || !(TT.FILL || {})[p.sub]) return null;
     const list = COVERS.filter((c) => !c.other && !c.country && norm(c.name) === norm(p.sub) && c.fig && c.fig.T.length);
     return list.length ? { name: p.name, list } : null;
@@ -251,14 +284,17 @@
     const n = norm(q);
     if (!n) return [];
     const rank = (p) => {
-      const v = norm(p.name);
-      if (v === n) return 0;
-      if (v.startsWith(n)) return 1;
-      if (v.split(' ').some((w) => w.startsWith(n))) return 2;
-      if (p.aka.split(' ').some((w) => w.startsWith(n))) return 3;
-      return p.sub !== 'Država' && norm(p.sub).startsWith(n) ? 4 : 9;
+      const v = p._n;
+      if (v === n || p._al === n) return 0;
+      if (v.startsWith(n) || (p._al && p._al.startsWith(n))) return 1;
+      if (p._w.some((w) => w.startsWith(n)) || v.includes(' ' + n)) return 2;
+      if (p.aka && (p.aka.startsWith(n) || p.aka.includes(' ' + n))) return 3;
+      return p.sub !== 'Država' && p._s.startsWith(n) ? 4 : 9;
     };
-    return PLACES.map((p) => [p, rank(p) + (p.sub === 'Tema' ? 0.5 : 0)]).filter((x) => x[1] < 9).sort((x, y) => x[1] - y[1] || x[0].name.localeCompare(y[0].name, 'sr')).slice(0, 8).map((x) => x[0]);
+    // prvo naša mesta (po abecedi), pa ostali svet po veličini grada
+    const hits = [];
+    for (const p of PLACES) { const r = rank(p) + (p.sub === 'Tema' ? 0.5 : 0); if (r < 9) hits.push([p, r]); }
+    return hits.sort((x, y) => x[1] - y[1] || (x[0].w ? 1 : 0) - (y[0].w ? 1 : 0) || (x[0].w && y[0].w ? x[0].w - y[0].w : x[0].name.localeCompare(y[0].name, 'sr'))).slice(0, 8).map((x) => x[0]);
   }
   // padajuća lista: ista za destinaciju (korak 1) i pretragu korica (korak 2)
   function makeCombo(input, list, onPick) {
@@ -353,6 +389,7 @@
     travel: [['pop', 'Najpopularnije'], ...CONTINENTS],
     other: [['sve', 'Sve'], ['rodj', 'Rođendani'], ['krst', 'Krštenja'], ['deca', 'Bebe i deca'], ['venc', 'Venčanja'], ['ljub', 'Ljubav'], ['drug', 'Drugarice'], ['porod', 'Porodica'], ['usp', 'Uspomene']],
   };
+    ((TT.ADDED || {}).themes || []).forEach((t) => { if (!CHIPS.other.some((x) => x[0] === t.k)) CHIPS.other.push([t.k, t.t]); });
   const allChip = () => (state.kind === 'other' ? 'sve' : 'pop');
   const startChip = allChip;
   const inChip = (c, k) => !!c.other === (state.kind === 'other') && (k === 'sve' || (k === 'pop' ? c.featIdx >= 0 : c.other ? c.cat.includes(k) : contOf(c) === k));
@@ -401,7 +438,7 @@
     $('#coverChips').innerHTML = CHIPS[state.kind].map(([k, t]) => `<button type="button" role="tab" data-chip="${k}" class="${state.chip === k ? 'on' : ''}">${t}</button>`).join('');
   }
   const placeSub = (name) => {
-    const p = PLACES.find((x) => norm(x.name) === norm(name || ''));
+    const p = PLACE_BY.get(norm(name || ''));
     return p && p.sub !== 'Država' && p.sub !== 'Tema' ? p.sub : '';
   };
   const dizajna = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'dizajn' : 'dizajna');

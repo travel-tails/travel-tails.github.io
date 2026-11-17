@@ -248,3 +248,6 @@ input, select { font: inherit; color: inherit; }
 .pk .thumb { display: block; aspect-ratio: 2480 / 3508; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 12px -6px var(--shadow); }
 .pk.on { border-color: var(--blue); background: var(--panel); color: var(--ink); }
 .steps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+
+.gtools { display: inline-flex; gap: 6px; margin-left: auto; }
+.gtools + .btn.soft.small { margin-left: 0; }

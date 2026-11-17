@@ -63,6 +63,7 @@
       <button type="button" data-st="del" title="Obrisane korice">Korpa <i id="delCount"></i></button>
     </div>
     <nav class="groups" id="groups" aria-label="Grupe"></nav>
+    <button class="btn soft add" id="addPlaceBtn" type="button">+ Novo mesto ili tema</button>
     <button class="btn soft add" id="addBtn" type="button">+ Dodaj novi dizajn</button>
   </aside>
 
@@ -70,6 +71,10 @@
     <div class="main-head">
       <h1 id="mainTitle">Sve korice</h1>
       <p id="mainHint"></p>
+      <span class="gtools" id="gTools" hidden>
+        <button class="btn ghost small" id="renBtn" type="button">Preimenuj</button>
+        <button class="btn ghost small danger" id="delGrpBtn" type="button" hidden>Obriši grupu</button>
+      </span>
       <button class="btn soft small" id="pullBtn" type="button" hidden>+ Dodaj koricu sa drugog mesta</button>
       <button class="btn ghost small danger" id="emptyTrash" type="button" hidden>Isprazni korpu</button>
     </div>
@@ -129,7 +134,7 @@
         </div>
         <div class="fields" id="travelFields">
           <label>Mesto<input id="ePlace" list="placeList" autocomplete="off"></label>
-          <label>Država<input id="eCountry" autocomplete="off"></label>
+          <label>Država<input id="eCountry" list="countryList" autocomplete="off"></label>
           <label>Deo sveta<select id="eCont"></select></label>
         </div>
         <div class="fields" id="otherFields" hidden>
@@ -220,7 +225,7 @@
       </div>
       <div class="fields two" id="nTravel">
         <label>Mesto<input id="nPlace" list="placeList" autocomplete="off"></label>
-        <label>Država<input id="nCountry" autocomplete="off"></label>
+        <label>Država<input id="nCountry" list="countryList" autocomplete="off"></label>
         <label>Deo sveta<select id="nCont"></select></label>
       </div>
       <div class="fields two" id="nOther" hidden>
@@ -232,6 +237,46 @@
     <div class="modal-act">
       <button class="btn ghost" type="button" id="newCancel">Otkaži</button>
       <button class="btn primary" type="submit" id="newOk">Uvezi kao skicu</button>
+    </div>
+  </form>
+</div>
+
+<!-- NOVO MESTO / TEMA -->
+<div class="modal" id="placeModal" hidden>
+  <form class="modal-card" id="placeForm" novalidate>
+    <h2>Novo mesto ili tema</h2>
+    <div class="seg" id="plTabs">
+      <button type="button" data-pk="place" class="on">Mesto</button>
+      <button type="button" data-pk="theme">Tema</button>
+    </div>
+    <div class="fields" id="plPlace">
+      <label>Naziv mesta<input id="plName" autocomplete="off" placeholder="npr. Jahorina"></label>
+      <label>Država (prazno ako dodaješ državu)<input id="plCountry" list="countryList" autocomplete="off"></label>
+      <label>Deo sveta<select id="plCont"></select></label>
+      <label>Drugi nazivi za pretragu (opciono)<input id="plAka" autocomplete="off" placeholder="npr. Jahorina ski"></label>
+    </div>
+    <div class="fields" id="plTheme" hidden>
+      <label>Naziv teme<input id="plTName" autocomplete="off" placeholder="npr. Matura, Godišnjica, Porodica"></label>
+      <p class="note">Tema dobija svoju grupu u adminu i svoje dugme na sajtu. Korice joj dodaješ preko „Dodaj koricu sa drugog mesta“ ili pri uvozu novog dizajna.</p>
+    </div>
+    <datalist id="countryList"></datalist>
+    <p class="note" id="plStatus" role="status"></p>
+    <div class="modal-act">
+      <button class="btn ghost" type="button" id="plCancel">Otkaži</button>
+      <button class="btn primary" type="submit">Dodaj</button>
+    </div>
+  </form>
+</div>
+
+<!-- PREIMENOVANJE -->
+<div class="modal" id="renModal" hidden>
+  <form class="modal-card small" id="renForm" novalidate>
+    <h2 id="renTitle">Preimenuj</h2>
+    <label class="full">Novi naziv<input id="renName" autocomplete="off"></label>
+    <p class="note" id="renNote"></p>
+    <div class="modal-act">
+      <button class="btn ghost" type="button" id="renCancel">Otkaži</button>
+      <button class="btn primary" type="submit">Sačuvaj</button>
     </div>
   </form>
 </div>
@@ -296,11 +341,12 @@
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<script src="covers-data.js?v=20261116c"></script>
-<script src="figma.js?v=20261116c"></script>
-<script src="covers.js?v=20261116c"></script>
-<script src="covers-config.js?v=20261116c"></script>
-<script src="catalog.js?v=20261116c"></script>
-<script src="admin.js?v=20261116c"></script>
+<script src="covers-data.js?v=20261117a"></script>
+<script src="places-data.js?v=20261117a"></script>
+<script src="figma.js?v=20261117a"></script>
+<script src="covers.js?v=20261117a"></script>
+<script src="covers-config.js?v=20261117a"></script>
+<script src="catalog.js?v=20261117a"></script>
+<script src="admin.js?v=20261117a"></script>
 </body>
 </html>

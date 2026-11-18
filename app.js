@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261118d';
+  const APP_VER = '20261118e';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -503,7 +503,8 @@
     if (country) push(countryLevel(country));
     if (kind === 's') push(live.filter((c) => c.neutral));
     if (cont) {
-      push(countryLevel(CONT_LABEL[cont]));
+      // evropske destinacije ne dobijaju opšte korice "Evropa" kao predlog
+      if (cont !== 'evropa') push(countryLevel(CONT_LABEL[cont]));
       // po jedan dizajn iz svake druge države tog dela sveta (redosled zavisi od upisanog mesta, da ne bude isto za svako mesto)
       const m = new Map();
       live.filter((c) => c.cont === cont && !c.country && c.name !== CONT_LABEL[cont]).forEach((c) => { if (!m.has(c.name)) m.set(c.name, []); m.get(c.name).push(c); });

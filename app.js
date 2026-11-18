@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261117e';
+  const APP_VER = '20261118a';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -1195,6 +1195,7 @@
     $('#colTitle').textContent = item ? 'Uredi kolaž' : 'Novi kolaž';
     $('#colDone').textContent = 'Gotovo';
     $('#colDone').disabled = false;
+    $('#colRestore').hidden = !item;
     $('#colEd').hidden = false;
     document.documentElement.style.overflow = 'hidden';
     colRender();
@@ -1350,6 +1351,19 @@
     th.getContext('2d').drawImage(cv, 0, 0, th.width, th.height);
     return { full, thumb: await canvasBlob(th, 0.82) };
   }
+  // vraća knjigu kako je bila pre kolaža: kolaž nestaje, a fotografije koje su ušle u njega su opet posebne strane na starim mestima
+  $('#colRestore').onclick = () => {
+    if (!col || !col.item) return;
+    const b = book(), item = col.item, before = b.photos.slice();
+    const idx = item.origIdx || {};
+    const back = (item.parts || []).filter((p) => !b.photos.includes(p)).sort((x, y) => (idx[x.id] ?? 1e9) - (idx[y.id] ?? 1e9));
+    const rest = b.photos.filter((x) => x !== item);
+    back.forEach((p) => rest.splice(Math.min(idx[p.id] ?? rest.length, rest.length), 0, p));
+    b.photos = rest;
+    closeCollage();
+    renderPhotos();
+    toast(`Kolaž je uklonjen, vraćeno ${back.length} ${stranica(back.length)} na staro mesto.`, () => { b.photos = before; if (book() === b && state.step === 3) renderPhotos(); });
+  };
   $('#colDone').onclick = async () => {
     if (!col) return;
     if (col.cells.some((c) => !c.ph)) { toast('Popuni sva mesta (dodirni mesto, pa izaberi fotografiju) ili izaberi raspored sa manje fotografija.'); return; }
@@ -1365,6 +1379,9 @@
       const parts = [...new Set([...used.filter((p) => fromBook.includes(p) || col.parts.includes(p))])];
       const giveBack = col.parts.filter((p) => !used.includes(p));
       b.photos = b.photos.filter((p) => !fromBook.includes(p));
+      const without = before.filter((x) => x !== item);
+      item.origIdx = Object.assign({}, item.origIdx || {});
+      fromBook.forEach((p) => { item.origIdx[p.id] = without.indexOf(p); });
       item.id = uid(); // nova slika = nova šifra (stara se nikad ne šalje)
       item.layout = col.layout; item.gap = col.gap; item.cells = col.cells.map((c) => Object.assign({}, c)); item.parts = parts;
       item.file = new File([full], 'kolaz.jpg', { type: 'image/jpeg' });

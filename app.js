@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261118c';
+  const APP_VER = '20261118d';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -243,7 +243,24 @@
     arr.forEach((p) => { p.w = 0; });
     const byKey = new Map(arr.map((p) => [norm1(p.name) + '|' + norm1(p.sub), p]));
     const have = new Set(byKey.keys());
-    const haveName = new Set(arr.filter((p) => p.sub === 'Država').map((p) => norm1(p.name)));
+    // sve države sveta i delovi sveta (da "Nigerija" daje i državu, a ne samo njene gradove)
+    const WW = window.TT_WORLD;
+    if (WW) {
+      WW.c.forEach((cn, i) => {
+        const k = norm1(cn) + '|' + norm1('Država'), e = byKey.get(k);
+        if (e) { const al = norm1(WW.e ? WW.e[i] : ''); if (al && !(' ' + e.aka + ' ').includes(' ' + al + ' ')) e.aka = (e.aka ? e.aka + ' ' : '') + al; return; }
+        const ne = { name: cn, sub: 'Država', aka: norm1(WW.e ? WW.e[i] : ''), icon: 'globe', w: 0 };
+        byKey.set(k, ne); have.add(k); arr.push(ne);
+      });
+    }
+    [['Evropa', 'europe'], ['Azija', 'asia'], ['Afrika', 'africa'], ['Amerika', 'america'], ['Australija', 'australia oceania okeanija']].forEach(([n, al]) => {
+      const k = norm1(n) + '|' + norm1('Država'), k2 = norm1(n) + '|' + norm1('Deo sveta');
+      if (byKey.has(k)) { byKey.get(k).sub = 'Deo sveta'; return; } // npr. "Afrika" iz korica je deo sveta, ne država
+      if (have.has(k2)) return;
+      const ne = { name: n, sub: 'Deo sveta', aka: al, icon: 'globe', w: 0 };
+      byKey.set(k2, ne); have.add(k2); arr.push(ne);
+    });
+    const haveName = new Set(arr.filter((p) => p.sub === 'Država' || p.sub === 'Deo sveta').map((p) => norm1(p.name)));
     // mesta koja je admin dodao
     ((TT.ADDED || {}).places || []).forEach((a) => {
       const k = norm1(a.name) + '|' + norm1(a.country || 'Država');
@@ -277,7 +294,7 @@
   // admin: za neke države se za svako mesto u njoj nude korice cele države (menja se samo tekst)
   function countryFill(q) {
     const n = norm(q), p = PLACE_BY.get(n);
-    if (!p || p.sub === 'Država' || p.sub === 'Tema' || !(TT.FILL || {})[p.sub]) return null;
+    if (!p || p.sub === 'Država' || p.sub === 'Tema' || p.sub === 'Deo sveta' || !(TT.FILL || {})[p.sub]) return null;
     const list = COVERS.filter((c) => !c.other && !c.country && norm(c.name) === norm(p.sub) && c.fig && c.fig.T.length);
     return list.length ? { name: p.name, list } : null;
   }
@@ -440,7 +457,7 @@
   }
   const placeSub = (name) => {
     const p = PLACE_BY.get(norm(name || ''));
-    return p && p.sub !== 'Država' && p.sub !== 'Tema' ? p.sub : '';
+    return p && p.sub !== 'Država' && p.sub !== 'Tema' && p.sub !== 'Deo sveta' ? p.sub : '';
   };
   const dizajna = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'dizajn' : 'dizajna');
   // ravnomerno: po jedan dizajn iz svakog mesta, pa sledeći krug
@@ -464,18 +481,45 @@
     if (/(^| )(plaza|more|sea|beach|island|ostrvo|ostrva|bay|zaliv|obala|rivijera|riviera|leto|summer)( |$)/.test(n)) return 's';
     return 'n';
   }
+  const CONT_LABEL = { evropa: 'Evropa', azija: 'Azija', afrika: 'Afrika', amerika: 'Amerika', australija: 'Australija' };
+  const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h >>> 0; };
+  // Šta nudimo kad za upisano mesto nema svojih korica: (1) zimsko/more ako je takvo mesto, (2) korice njegove države,
+  // (3) korice tog dela sveta, (4) korice drugih država iz tog dela sveta; uvek sa upisanim nazivom.
   function fallbackPool(q) {
-    const kind = placeKind(q);
-    const ok = (c) => c.fig && c.fig.T.some((t) => t.r === 't');
-    if (kind === 's') return COVERS.filter((c) => c.neutral && ok(c));
-    const byId = new Map(COVERS.map((c) => [c.id, c]));
-    const pool = (FB_IDS[kind] || FB_IDS.n).map((id) => byId.get(id)).filter((c) => c && ok(c));
-    return pool.length ? pool : COVERS.filter((c) => c.neutral && ok(c));
+    const n = norm(q), p = PLACE_BY.get(n), kind = placeKind(q), W = window.TT_WORLD;
+    const ok = (c) => c.fig && c.fig.T.some((t) => t.r === 't') && !c.other;
+    const live = COVERS.filter(ok), byId = new Map(COVERS.map((c) => [c.id, c]));
+    const country = p ? (p.sub === 'Država' ? p.name : p.sub !== 'Tema' && p.sub !== 'Deo sveta' ? p.sub : '') : '';
+    const ci = W && country ? W.c.indexOf(country) : -1;
+    let cont = ci >= 0 ? W.k[ci] : '';
+    if (!cont && p && p.sub === 'Deo sveta') cont = Object.keys(CONT_LABEL).find((k) => norm(CONT_LABEL[k]) === n) || '';
+    if (!cont && country) { const any = live.find((c) => c.country === country || (!c.country && c.name === country)); if (any) cont = any.cont || ''; }
+    const out = [], seen = new Set();
+    const push = (list) => list.forEach((c) => { if (c && !seen.has(c.id)) { seen.add(c.id); out.push(c); } });
+    const pick = (ids) => ids.map((id) => byId.get(id)).filter(ok);
+    const countryLevel = (cn) => live.filter((c) => !c.country && norm(c.name) === norm(cn));
+    const seeded = (list) => list.slice().sort((a, b) => hash(n + a.id) - hash(n + b.id));
+    if (kind === 'w') push(pick(FB_IDS.w));
+    if (country) push(countryLevel(country));
+    if (kind === 's') push(live.filter((c) => c.neutral));
+    if (cont) {
+      push(countryLevel(CONT_LABEL[cont]));
+      // po jedan dizajn iz svake druge države tog dela sveta (redosled zavisi od upisanog mesta, da ne bude isto za svako mesto)
+      const m = new Map();
+      live.filter((c) => c.cont === cont && !c.country && c.name !== CONT_LABEL[cont]).forEach((c) => { if (!m.has(c.name)) m.set(c.name, []); m.get(c.name).push(c); });
+      // krug po krug: prvo po jedan dizajn svake države, pa drugi, treći...
+      const gl = seeded([...m.values()].map((g) => seeded(g)));
+      for (let r = 0; gl.some((g) => g[r]); r++) push(gl.map((g) => g[r]).filter(Boolean));
+    }
+    if (kind === 'n' && !country && !cont) push(pick(FB_IDS.n));
+    if (!out.length) push(pick(FB_IDS.n));
+    if (!out.length) push(live.filter((c) => c.neutral));
+    return out;
   }
   function fillFor(q, main, more) {
     const have = new Set(main.map((c) => c.id));
     const neutral = fallbackPool(q).filter((c) => !have.has(c.id));
-    if (!state.fillPick || state.fillPick.q !== q) state.fillPick = { q, ids: neutral.slice().sort(() => Math.random() - 0.5).map((c) => c.id) };
+    if (!state.fillPick || state.fillPick.q !== q) state.fillPick = { q, ids: neutral.map((c) => c.id) };
     const byId = new Map(neutral.map((c) => [c.id, c]));
     const want = (main.length >= 8 ? 6 : 12) + 12 * (more || 0);
     return state.fillPick.ids.map((id) => byId.get(id)).filter(Boolean).slice(0, want);
@@ -514,7 +558,8 @@
       else if (rest.length) html += `<button type="button" class="cv-more" data-more>Učitaj još</button>`;
       if (!main.length && !cf) {
         const fill = fillFor(q, main, state.fillMore && state.fillMore.q === q ? state.fillMore.n : 0);
-        html += fill.map((c) => card(c, q)).join('');
+        const nice = (PLACE_BY.get(norm(q)) || {}).name || q;
+        html += fill.map((c) => card(c, nice)).join('');
         const total = fallbackPool(q).length;
         if (fill.length < total - main.filter((c) => c.neutral).length) html += `<button type="button" class="cv-more" data-fillmore>Učitaj još</button>`;
       }

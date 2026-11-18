@@ -31,6 +31,7 @@
      i uvek bar SIDE od bočnih ivica (širi naslov se malo smanji). Podnaslov i godina pored naslova idu zajedno s njim.
      Ne važi za korice gde je naslov namerno niže (vrh slova ispod LOW) i kada admin uključi "slobodan položaj" (adj.free). */
   const STD = { top: 210, side: 120, low: 450 };
+  const ZMAX = 900;
   const stdCache = new WeakMap();
   function stdT(c) {
     const T = c.fig.T, free = !!(c.adj && c.adj.free);
@@ -110,12 +111,16 @@
       const t0 = titles[0];
       let s = String(o.title).trim() || ' ';
       if (t0.up || isCaps(titles.map((t) => t.s).join(''))) s = s.toLocaleUpperCase('sr');
-      const margin = Math.max((c.adj && c.adj.mg) || 0, 50, Math.min(400, Math.min(t0.x, PW - t0.x - t0.w)));
+      // kupčev naslov (ili podrazumevan iz admina) uvek ima "normalnu" veličinu kao ostale korice: puni širinu strane do ZMAX, a predugačak se smanji da stane
+      const side = c.adj && c.adj.free ? Math.min(400, Math.min(t0.x, PW - t0.x - t0.w)) : STD.side;
+      const margin = Math.max((c.adj && c.adj.mg) || 0, 50, side);
       const maxW = PW - 2 * margin;
-      let z = t0.z * A.s, w = width(t0, s, z);
+      const fit = (maxW / width(t0, s, 1000)) * 1000;
+      let z = Math.min(ZMAX, fit) * A.s, w = width(t0, s, z);
       if (w > maxW) { z = (z * maxW) / w; w = maxW; }
       const centered = Math.abs(t0.x + t0.w / 2 - PW / 2) < 160 || t0.a === 'C';
-      const x = (centered ? PW / 2 - w / 2 : t0.a === 'R' ? t0.x + t0.w - w : t0.x) + A.x;
+      const x0 = centered ? PW / 2 - w / 2 : t0.a === 'R' ? t0.x + t0.w - w : t0.x;
+      const x = Math.max(margin, Math.min(x0, PW - margin - w)) + A.x;
       const bNew = baseline(t0) - (t0.z - z) * CAP + A.y;
       add(t0, s, x, bNew, z, 'start', o.ink || t0.c);
       dRight = x + w - tRight;

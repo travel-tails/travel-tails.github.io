@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261118a';
+  const APP_VER = '20261118b';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -1155,6 +1155,7 @@
   /* ---------- Kolaž: više fotografija na jednoj A4 strani; u knjigu ulazi kao JEDNA slika ----------
      Kolaž se iscrta u A4 (2480×3508) i dalje se ponaša kao obična fotografija (listanje, slanje, štampa). */
   const COL = {
+    '1': [[0, 0, 1, 1]],
     '2v': [[0, 0, 1, 0.5], [0, 0.5, 1, 0.5]],
     '2h': [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]],
     '2a': [[0, 0, 1, 0.62], [0, 0.62, 1, 0.38]],
@@ -1195,7 +1196,6 @@
     $('#colTitle').textContent = item ? 'Uredi kolaž' : 'Novi kolaž';
     $('#colDone').textContent = 'Gotovo';
     $('#colDone').disabled = false;
-    $('#colRestore').hidden = !item;
     $('#colEd').hidden = false;
     document.documentElement.style.overflow = 'hidden';
     colRender();
@@ -1235,7 +1235,7 @@
     const rects = colRects(col.layout, col.gap);
     $('#colPage').innerHTML = rects.map((r, i) => `<div class="col-cell ${i === col.sel ? 'on' : ''}" data-i="${i}" style="left:${r[0] * 100}%;top:${(r[1] / FH) * 100}%;width:${r[2] * 100}%;height:${(r[3] / FH) * 100}%">${col.cells[i].ph ? '<img alt="" draggable="false">' : '<span class="col-plus">+</span>'}</div>`).join('');
     rects.forEach((_, i) => colPlace(i));
-    $('#colLayouts').innerHTML = Object.keys(COL).map((k) => `<button type="button" data-l="${k}" class="${k === col.layout ? 'on' : ''}" aria-label="Raspored ${COL[k].length} fotografije"><svg viewBox="0 0 1 ${FH}" preserveAspectRatio="xMidYMid meet">${colRects(k, true).map((r) => `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="0.02"/>`).join('')}</svg></button>`).join('');
+    $('#colLayouts').innerHTML = Object.keys(COL).map((k) => `<button type="button" data-l="${k}" class="${k === col.layout ? 'on' : ''}" aria-label="${COL[k].length === 1 ? 'Samo jedna fotografija (bez kolaža)' : 'Raspored ' + COL[k].length + ' fotografije'}" title="${COL[k].length === 1 ? 'Samo jedna fotografija (bez kolaža)' : ''}"><svg viewBox="0 0 1 ${FH}" preserveAspectRatio="xMidYMid meet">${colRects(k, true).map((r) => `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="0.02"/>`).join('')}</svg></button>`).join('');
     const cell = col.cells[col.sel];
     $('#colTools').hidden = !(cell && cell.ph);
     if (cell && cell.ph) $('#colZoom').value = Math.round(cell.zoom * 100);
@@ -1351,22 +1351,30 @@
     th.getContext('2d').drawImage(cv, 0, 0, th.width, th.height);
     return { full, thumb: await canvasBlob(th, 0.82) };
   }
-  // vraća knjigu kako je bila pre kolaža: kolaž nestaje, a fotografije koje su ušle u njega su opet posebne strane na starim mestima
-  $('#colRestore').onclick = () => {
-    if (!col || !col.item) return;
-    const b = book(), item = col.item, before = b.photos.slice();
-    const idx = item.origIdx || {};
-    const back = (item.parts || []).filter((p) => !b.photos.includes(p)).sort((x, y) => (idx[x.id] ?? 1e9) - (idx[y.id] ?? 1e9));
-    const rest = b.photos.filter((x) => x !== item);
-    back.forEach((p) => rest.splice(Math.min(idx[p.id] ?? rest.length, rest.length), 0, p));
-    b.photos = rest;
-    closeCollage();
-    renderPhotos();
-    toast(`Kolaž je uklonjen, vraćeno ${back.length} ${stranica(back.length)} na staro mesto.`, () => { b.photos = before; if (book() === b && state.step === 3) renderPhotos(); });
-  };
   $('#colDone').onclick = async () => {
     if (!col) return;
     if (col.cells.some((c) => !c.ph)) { toast('Popuni sva mesta (dodirni mesto, pa izaberi fotografiju) ili izaberi raspored sa manje fotografija.'); return; }
+    if (col.layout === '1') {
+      const b = book(), chosen = col.cells[0].ph, item = col.item, before = b.photos.slice();
+      let rest = b.photos.filter((x) => x !== item);
+      const at = item ? Math.max(0, b.photos.indexOf(item)) : -1;
+      if (item) {
+        const idx = item.origIdx || {};
+        const back = (item.parts || []).filter((p) => !rest.includes(p)).sort((x, y) => (idx[x.id] ?? 1e9) - (idx[y.id] ?? 1e9));
+        back.forEach((p) => rest.splice(Math.min(idx[p.id] ?? rest.length, rest.length), 0, p));
+      }
+      if (!rest.includes(chosen)) {
+        const seedAt = col.seed ? rest.indexOf(col.seed) : -1;
+        rest.splice(seedAt >= 0 ? seedAt + 1 : at >= 0 ? Math.min(at, rest.length) : rest.length, 0, chosen);
+      }
+      chosen.crop = defaultCrop();
+      chosen.crop.rot = col.cells[0].rot || 0;
+      b.photos = rest;
+      closeCollage();
+      renderPhotos();
+      toast(item ? 'Kolaž je uklonjen, strane su kao ranije.' : 'Ostala je jedna fotografija.', () => { b.photos = before; if (book() === b && state.step === 3) renderPhotos(); });
+      return;
+    }
     const btn = $('#colDone');
     btn.disabled = true; btn.textContent = 'Pravim…';
     try {

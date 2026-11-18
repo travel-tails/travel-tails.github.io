@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261118b';
+  const APP_VER = '20261118c';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -255,15 +255,16 @@
     const W = window.TT_WORLD;
     if (W) {
       W.p.forEach((s, i) => {
-        const [name, ci, eng] = s.split('|'), sub = W.c[+ci], k = norm1(name) + '|' + norm1(sub);
+        const [name, ci, eng, typ] = s.split('|'), sub = W.c[+ci], k = norm1(name) + '|' + norm1(sub);
         if (have.has(k) || haveName.has(norm1(name))) {
           const ex = byKey.get(k);
+          if (ex && typ && !ex.t) ex.t = typ;
           if (ex && eng && !(' ' + ex.aka + ' ').includes(' ' + norm1(eng) + ' ')) { ex.aka = (ex.aka ? ex.aka + ' ' : '') + norm1(eng); }
           if (ex && eng) ex._al = norm1(eng);
           return;
         }
         have.add(k);
-        const e = { name, sub, aka: eng ? norm1(eng) : '', icon: 'pin', w: i + 1, _al: eng ? norm1(eng) : '' };
+        const e = { name, sub, aka: eng ? norm1(eng) : '', icon: 'pin', w: i + 1, _al: eng ? norm1(eng) : '', t: typ || '' };
         byKey.set(k, e);
         arr.push(e);
       });
@@ -451,9 +452,29 @@
     return out;
   }
   // dopuna: samo neutralni dizajni (bez znamenitosti), nasumičan izbor koji se može dopunjavati ("Učitaj još")
+  const FB_IDS = {
+    w: ['n313117', 'n313840', 'n1103', 'n313120', 'n309192', 'n313029', 'n312860', 'n308990'],
+    n: ['n313132', 'n313124', 'n248621', 'n286614', 'n287755', 'n219797', 'n219874', 'n286611'],
+  };
+  // vrsta mesta: w = zimsko, s = more/letovanje, n = malo mesto i priroda (kućica, šuma, brdo)
+  function placeKind(q) {
+    const n = norm(q), p = PLACE_BY.get(n);
+    if (p && p.t) return p.t;
+    if (/(^| )(ski|skij\w*|planina|mount\w*|alp\w*|sneg|zima|winter)( |$)/.test(n)) return 'w';
+    if (/(^| )(plaza|more|sea|beach|island|ostrvo|ostrva|bay|zaliv|obala|rivijera|riviera|leto|summer)( |$)/.test(n)) return 's';
+    return 'n';
+  }
+  function fallbackPool(q) {
+    const kind = placeKind(q);
+    const ok = (c) => c.fig && c.fig.T.some((t) => t.r === 't');
+    if (kind === 's') return COVERS.filter((c) => c.neutral && ok(c));
+    const byId = new Map(COVERS.map((c) => [c.id, c]));
+    const pool = (FB_IDS[kind] || FB_IDS.n).map((id) => byId.get(id)).filter((c) => c && ok(c));
+    return pool.length ? pool : COVERS.filter((c) => c.neutral && ok(c));
+  }
   function fillFor(q, main, more) {
     const have = new Set(main.map((c) => c.id));
-    const neutral = COVERS.filter((c) => c.neutral && c.fig && c.fig.T.length && !have.has(c.id));
+    const neutral = fallbackPool(q).filter((c) => !have.has(c.id));
     if (!state.fillPick || state.fillPick.q !== q) state.fillPick = { q, ids: neutral.slice().sort(() => Math.random() - 0.5).map((c) => c.id) };
     const byId = new Map(neutral.map((c) => [c.id, c]));
     const want = (main.length >= 8 ? 6 : 12) + 12 * (more || 0);
@@ -494,7 +515,7 @@
       if (!main.length && !cf) {
         const fill = fillFor(q, main, state.fillMore && state.fillMore.q === q ? state.fillMore.n : 0);
         html += fill.map((c) => card(c, q)).join('');
-        const total = COVERS.filter((c) => c.neutral && c.fig && c.fig.T.length).length;
+        const total = fallbackPool(q).length;
         if (fill.length < total - main.filter((c) => c.neutral).length) html += `<button type="button" class="cv-more" data-fillmore>Učitaj još</button>`;
       }
     } else {

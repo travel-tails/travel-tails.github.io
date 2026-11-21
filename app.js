@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261121a';
+  const APP_VER = '20261121b';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -528,7 +528,8 @@
   function card(c, as) {
     const b = book();
     const on = b.coverId === c.id && (b.coverAs || '') === (as || '');
-    const o = as ? { title: as, sub: placeSub(as) } : {};
+    // korice bez podnaslova u dizajnu ne dobijaju podnaslov same (država se ne upisuje)
+    const o = as ? { title: as, sub: c.fig && !c.fig.T.some((t) => t.r === 's') ? '' : placeSub(as) } : {};
     const img = c.fig ? TTF.figmaCard(c, o) : coverSVG(c, Object.assign({ year: c.other ? '' : YEAR }, o));
     return `<button type="button" class="cv ${on ? 'sel' : ''}" data-cover="${c.id}"${as ? ` data-as="${esc(as)}"` : ''} aria-pressed="${on}" aria-label="${esc(as || c.title || c.name)}"><span class="cv-img">${img}</span></button>`;
   }

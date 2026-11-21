@@ -152,21 +152,29 @@
       add(t, s, x, t.y + (baseline(t) - t.y) * (z / t.z) + my, z, 'start', fill);
     };
     subs.forEach((t, i) => place(t, i === 0 ? o.sub : null, o.accent || t.c, 's'));
-    // korica nema podnaslov u dizajnu: kupac ipak može da ga doda (ispod naslova, na sredini); bez upisa ništa se ne crta
+    if (year) place(year, o.year, o.accent || year.c, 'y');
+    // korica nema podnaslov u dizajnu: kupac ga ipak može dodati (sa strane, u redu sa godinom, kao inače); dok ništa ne upiše, ne crta se ništa
     const addSub = String(o.sub == null ? '' : o.sub).trim();
     if (!subs.length && titles.length && addSub && tBase != null && !hidden(c, 's')) {
       const t0 = titles[0], a = adjOf(c, 's');
       const z0 = Math.max(130, Math.min(250, t0.z * 0.28)) * a.s;
       const caps = !!t0.up || isCaps(titles.map((t) => t.s).join(''));
-      const pt = { r: 's', s: addSub, x: 0, y: 0, w: PW, h: z0, wt: 800, z: z0, ls: -0.03 * z0, lh: 0, c: o.accent || (year && year.c) || o.ink || t0.c, a: 'C', up: caps ? 1 : 0 };
+      const pt = { r: 's', s: addSub, x: 0, y: 0, w: PW, h: z0, wt: 800, z: z0, ls: -0.03 * z0, lh: 0, c: o.accent || (year && year.c) || o.ink || t0.c, a: 'R', up: caps ? 1 : 0 };
       if (t0.f) pt.f = t0.f;
       const txt = caps ? addSub.toLocaleUpperCase('sr') : addSub;
-      const maxW = PW - 2 * STD.side;
+      const yo = ops.find((p) => p.t.r === 'y');
+      let right, base;
+      if (yo) {
+        const yw = width(yo.t, yo.s, yo.z);
+        const yl = yo.anchor === 'end' ? yo.x - yw : yo.anchor === 'middle' ? yo.x - yw / 2 : yo.x;
+        right = yl - z0 * 0.35; base = yo.y;
+      } else { right = tRight + dRight; base = tBase + z0 * 1.3; }
+      right = Math.min(right, PW - STD.side);
       let z = z0, w = width(pt, txt, z);
-      if (w > maxW) { z = (z * maxW) / w; }
-      add(pt, txt, PW / 2 + a.x, tBase + z0 * 1.3 + a.y, z, 'middle', pt.c);
+      const room = right - STD.side;
+      if (w > room) z = (z * room) / w;
+      add(pt, txt, right + a.x, base + a.y, z, 'end', pt.c);
     }
-    if (year) place(year, o.year, o.accent || year.c, 'y');
     return ops;
   }
   const svgText = (ops) => ops.map((p) => `<text data-r="${p.t.r}" x="${r1(p.x)}" y="${r1(p.y)}" text-anchor="${p.anchor}" font-family="${esc(famCss(p.t))}" font-weight="${p.t.wt}"${p.t.it ? ' font-style="italic"' : ''} font-size="${r1(p.z)}" letter-spacing="${r1((p.t.ls * p.z) / p.t.z)}" fill="${p.fill}"${p.t.o ? ` fill-opacity="${p.t.o}"` : ''} style="white-space:pre">${esc(p.s)}</text>`).join('');

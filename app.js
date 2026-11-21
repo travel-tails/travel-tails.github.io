@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261119b';
+  const APP_VER = '20261121a';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -587,7 +587,8 @@
     if (prev !== id || prevAs !== b.coverAs) {
       const q = $('#coverSearch').value.trim();
       b.title = id === 'custom' ? (q || b.dest || '') : as || c.title;
-      b.sub = as ? placeSub(as) : c.sub;
+      // korice bez podnaslova u dizajnu ne dobijaju podnaslov same; kupac ga može dodati
+      b.sub = c.fig && !c.fig.T.some((t) => t.r === 's') ? '' : as ? placeSub(as) : c.sub;
       b.year = c.fig ? c.year : c.other ? '' : YEAR;
       b.bg = b.ink = b.accent = null;
       b.swatch = 0;
@@ -631,7 +632,8 @@
     $('#cCustomField').hidden = b.coverId !== 'custom';
     const cv = cover(b), roles = cv.fig ? new Set(cv.fig.T.filter((t) => !((cv.adj || {})[t.r] || {}).hide).map((t) => t.r)) : null;
     $('#cTitle').closest('.field').hidden = !!roles && !roles.has('t');
-    $('#cSub').closest('.field').hidden = !!roles && !roles.has('s');
+    // i korice bez podnaslova u dizajnu dozvoljavaju da kupac doda podnaslov (ispod naslova)
+    $('#cSub').closest('.field').hidden = !!roles && !roles.has('s') && !(roles.has('t') && !((cv.adj || {}).s || {}).hide);
     $('#cYearField').hidden = roles ? !roles.has('y') : !!cv.subBottom;
     $('#cYearField').style.display = '';
     $('#swatches').closest('.field').hidden = !!(cv.fig && (cv.fig.lock || cv.fig.fx));

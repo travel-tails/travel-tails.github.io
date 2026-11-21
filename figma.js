@@ -98,7 +98,7 @@
       }
       return { right: t.x + t.w / 2 + dx + (t.w * k) / 2, base: t.y + (baseline(t) - t.y) * k + (lines.length - 1) * lh + dy };
     };
-    let dRight = 0, dY = 0, tRight = 0;
+    let dRight = 0, dY = 0, tRight = 0, tBase = null;
     const custom = o.title != null && norm(o.title) !== norm(origTitle);
     if (titles.length) tRight = Math.max(...titles.map((t) => t.x + t.w));
     const last = titles[titles.length - 1];
@@ -106,6 +106,7 @@
       let right = 0, base = 0;
       titles.forEach((t) => { const r = original(t, o.ink || t.c, A.x, A.y, A.s); right = Math.max(right, r.right); base = r.base; });
       dRight = right - tRight;
+      tBase = base;
       dY = base - (baseline(last) + (lineH(last) * (shown(last, last.s).split(LINES).length - 1)));
     } else if (titles.length) {
       const t0 = titles[0];
@@ -124,6 +125,7 @@
       const bNew = baseline(t0) - (t0.z - z) * CAP + A.y;
       add(t0, s, x, bNew, z, 'start', o.ink || t0.c);
       dRight = x + w - tRight;
+      tBase = bNew;
       dY = bNew - baseline(last);
     }
     const follow = (t) => titles.length && t.y > titles[0].y && Math.abs(t.x + t.w - tRight) < 420;
@@ -150,6 +152,20 @@
       add(t, s, x, t.y + (baseline(t) - t.y) * (z / t.z) + my, z, 'start', fill);
     };
     subs.forEach((t, i) => place(t, i === 0 ? o.sub : null, o.accent || t.c, 's'));
+    // korica nema podnaslov u dizajnu: kupac ipak može da ga doda (ispod naslova, na sredini); bez upisa ništa se ne crta
+    const addSub = String(o.sub == null ? '' : o.sub).trim();
+    if (!subs.length && titles.length && addSub && tBase != null && !hidden(c, 's')) {
+      const t0 = titles[0], a = adjOf(c, 's');
+      const z0 = Math.max(130, Math.min(250, t0.z * 0.28)) * a.s;
+      const caps = !!t0.up || isCaps(titles.map((t) => t.s).join(''));
+      const pt = { r: 's', s: addSub, x: 0, y: 0, w: PW, h: z0, wt: 800, z: z0, ls: -0.03 * z0, lh: 0, c: o.accent || (year && year.c) || o.ink || t0.c, a: 'C', up: caps ? 1 : 0 };
+      if (t0.f) pt.f = t0.f;
+      const txt = caps ? addSub.toLocaleUpperCase('sr') : addSub;
+      const maxW = PW - 2 * STD.side;
+      let z = z0, w = width(pt, txt, z);
+      if (w > maxW) { z = (z * maxW) / w; }
+      add(pt, txt, PW / 2 + a.x, tBase + z0 * 1.3 + a.y, z, 'middle', pt.c);
+    }
     if (year) place(year, o.year, o.accent || year.c, 'y');
     return ops;
   }

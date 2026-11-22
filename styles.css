@@ -91,6 +91,16 @@ svg { display: block; }
 .facts span { display: block; font-size: 12.500px; line-height: 1.25; color: var(--muted); margin-top: 3px; }
 
 .pricing { background: #fff; border-radius: 20px; padding: 18px; box-shadow: 0 12px 28px -20px var(--shadow); margin-bottom: 26px; }
+.multi { background: #fff; border-radius: 20px; padding: 18px; box-shadow: 0 12px 28px -20px var(--shadow); margin-bottom: 26px; }
+.multi h2 { font-size: 22px; margin: 0 0 14px; }
+.multi-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.qty { display: inline-flex; align-items: center; border-radius: 99px; background: var(--sky-wash); padding: 4px; }
+.qty button { all: unset; cursor: pointer; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: var(--blue); font: 700 22px/1 var(--head); box-shadow: 0 4px 10px -6px var(--shadow); }
+.qty button:hover { background: var(--blue); color: #fff; }
+.qty button:disabled { opacity: .35; cursor: default; background: #fff; color: var(--blue); }
+.qty button:focus-visible { outline: 2px solid var(--sky-deep); }
+.qty output { min-width: 48px; text-align: center; font: 800 22px/1 var(--head); color: var(--navy, #153a55); }
+.multi-note { margin: 0; font-size: 14px; color: var(--muted); flex: 1; min-width: 180px; }
 .price-head { margin-bottom: 14px; }
 .price-head h2 { font-size: 22px; margin: 0; }
 .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }

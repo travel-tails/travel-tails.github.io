@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261122a';
+  const APP_VER = '20261122b';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -114,7 +114,7 @@
   function renderBookTabs() {
     const el = $('#bookTabs');
     // više knjiga u jednoj porudžbini: kartice knjiga + "Nova knjiga" (na koraku 3 čim ima fotografija)
-    const show = (state.step === 2 || state.step === 3) && (state.books.length > 1 || (state.step === 3 && countOf(book()) > 0));
+    const show = (state.step === 1 && state.books.length > 1) || ((state.step === 2 || state.step === 3) && (state.books.length > 1 || (state.step === 3 && countOf(book()) > 0)));
     el.hidden = !show;
     if (show) el.innerHTML = state.books.map((b, i) => `<button type="button" data-book="${i}" class="${i === state.active ? 'on' : ''}">Knjiga ${i + 1}${b.title || b.dest ? ': ' + esc(b.title || b.dest) : ''}</button>`).join('')
       + (state.books.length < MAX_BOOKS ? `<button type="button" class="add" data-newbook>+ Nova knjiga</button>` : '');
@@ -176,10 +176,11 @@
   function renderFoot() {
     const next = $('#btnNext'), hint = $('#footHint'), b = book();
     renderBookTabs();
-    if (state.step === 1) { next.textContent = 'Dalje: korice →'; hint.textContent = `${b.plan} ${stranica(b.plan)}, ${money(priceFor(b.plan))}`; }
+    if (state.step === 1) { next.textContent = 'Dalje: korice →'; hint.textContent = `${state.books.length > 1 ? `Knjiga ${state.active + 1} od ${state.books.length}: ` : ''}${b.plan} ${stranica(b.plan)}, ${money(priceFor(b.plan))}`; }
     if (state.step === 2) { next.textContent = 'Dalje: fotografije →'; hint.textContent = b.coverId ? `Izabrano: ${cover(b).name}` : ''; }
     if (state.step === 3) {
-      next.textContent = 'Dalje: slanje →';
+      const ni = nextTodo();
+      next.textContent = ni >= 0 ? `Dalje: knjiga ${ni + 1} →` : 'Dalje: slanje →';
       const n = countOf(b);
       hint.textContent = !n ? '' : goodCount(n) ? `${n} ${stranica(n)}, ${money(priceFor(n))}` : countProblem(n);
     }
@@ -213,6 +214,30 @@
   function renderStep1() {
     $('#fDest').value = book().dest;
     renderPlans();
+    renderQty();
+  }
+  // koliko knjiga se pravi odjednom; svaka ima svoju destinaciju, korice i fotografije, a šalju se zajedno
+  function renderQty() {
+    const n = state.books.length;
+    $('#booksN').textContent = n;
+    $('#booksMinus').disabled = n <= 1;
+    $('#booksPlus').disabled = n >= MAX_BOOKS;
+    $('#multiNote').textContent = n > 1 ? `Knjiga ${state.active + 1} od ${n}. Posle nje te vodimo kroz sledeću.` : 'Možeš da napraviš i pošalješ više knjiga odjednom.';
+  }
+  function setBookCount(n) {
+    n = Math.max(1, Math.min(MAX_BOOKS, n));
+    while (state.books.length < n) { const nb = newBook(); nb.autoCover = false; state.books.push(nb); }
+    if (n < state.books.length) {
+      if (state.books.slice(n).some((x) => x.photos.length)) { toast('Ta knjiga već ima fotografije. Ukloni je na koraku Slanje.'); renderQty(); return; }
+      state.books.length = n;
+      state.active = Math.min(state.active, n - 1);
+    }
+    renderStep1(); renderBookTabs(); renderFoot();
+  }
+  // sledeća knjiga (posle trenutne) koju treba dovršiti; -1 ako nema
+  function nextTodo() {
+    for (let i = state.active + 1; i < state.books.length; i++) { const x = state.books[i]; if (!x.dest.trim() || bookProblem(x)) return i; }
+    return -1;
   }
   const ICON_PATHS = {
     pin: '<path d="M12 22s7-6.400 7-12a7 7 0 1 0-14 0c0 5.600 7 12 7 12Z"/><circle cx="12" cy="10" r="2.500"/>',
@@ -2247,9 +2272,16 @@
 
   /* ---------- globalno ---------- */
   $('#btnNext').onclick = () => {
-    if (state.step === 4) send();
-    else goTo(state.step + 1);
+    if (state.step === 4) { send(); return; }
+    // posle fotografija jedne knjige, vodi na sledeću nedovršenu (ako ih ima više)
+    if (state.step === 3 && validate(3)) {
+      const i = nextTodo();
+      if (i >= 0) { state.active = i; const x = book(); x.autoCover = false; goTo(x.dest.trim() ? 2 : 1, true); toast(`Knjiga ${i + 1}${x.dest.trim() ? '' : ': upiši destinaciju'}.`); return; }
+    }
+    goTo(state.step + 1);
   };
+  $('#booksMinus').onclick = () => setBookCount(state.books.length - 1);
+  $('#booksPlus').onclick = () => setBookCount(state.books.length + 1);
   $('#btnBack').onclick = () => goTo(state.step - 1, true);
   $('#stepper').addEventListener('click', (e) => {
     const b = e.target.closest('[data-go]');

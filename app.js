@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261122d';
+  const APP_VER = '20261122e';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -39,9 +39,10 @@
   };
 
   const newBook = () => ({ id: uid(), dest: '', coverId: null, title: '', sub: '', year: YEAR, bg: null, ink: null, accent: null, swatch: 0, inkSet: false, note: '', photos: [], autoCover: true, plan: 60, back: { layout: 'text', title: null, sub: null, picks: [], extra: [] }, spine: null });
-  const state = { step: 1, reached: 1, name: '', ig: '', books: [newBook()], active: 0, kind: 'travel', chip: 'pop', ship: 'post', city: '', addr: '', phone: '', note: '', sent: false };
+  const state = { step: 1, reached: 1, name: '', ig: '', books: [newBook()], wanted: 1, active: 0, kind: 'travel', chip: 'pop', ship: 'post', city: '', addr: '', phone: '', note: '', sent: false };
   const book = () => state.books[state.active];
   const MAX_BOOKS = 10;
+  const totalBooks = () => Math.max(state.wanted || 1, state.books.length);
   const pagesBad = (b) => !goodCount(b.photos.filter((p) => p.status === 'ready').length);
   const cover = (b) => (b.coverId ? coverById(b.coverId) : null);
   const coverOf = (b) => coverSVG(cover(b) || CUSTOM, { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent });
@@ -115,10 +116,10 @@
   function renderBookTabs() {
     const el = $('#bookTabs');
     // više knjiga u jednoj porudžbini: kartice knjiga + "Nova knjiga" (na koraku 3 čim ima fotografija)
-    const show = (state.step === 1 && state.books.length > 1) || ((state.step === 2 || state.step === 3) && (state.books.length > 1 || (state.step === 3 && countOf(book()) > 0)));
+    const show = (state.step === 2 || state.step === 3) && (state.books.length > 1 || (state.step === 3 && countOf(book()) > 0));
     el.hidden = !show;
-    const n = state.books.length, many = n > 1;
-    $('#coverTitle').textContent = many ? `Korice za knjigu ${state.active + 1} od ${n}` : 'Izaberi korice';
+    const n = state.books.length, many = n > 1, total = totalBooks();
+    $('#coverTitle').textContent = total > 1 ? `Korice za knjigu ${state.active + 1} od ${total}` : 'Izaberi korice';
     const label = state.step === 2 ? 'Korice' : state.step === 3 ? 'Fotografije' : 'Knjige';
     const doneOf = (b) => state.step === 1 ? !!b.dest.trim() : state.step === 2 ? !!b.coverId && !b.autoPicked : !pagesBad(b);
     if (show) el.innerHTML = (many ? `<span class="bt-label">${label}</span>` : '')
@@ -129,10 +130,8 @@
   function validate(n, silent) {
     const b = book();
     if (n === 1) {
-      const bad = state.books.findIndex((x) => !x.dest.trim());
-      const destOK = bad < 0;
+      const destOK = b.dest.trim().length > 0;
       if (!silent) {
-        if (!destOK && bad !== state.active) { state.active = bad; renderStep1(); renderBookTabs(); renderFoot(); }
         setErr('Dest', destOK ? '' : 'Napiši gde je bilo putovanje ili o čemu je knjiga.', $('#fDest'));
         if (!destOK) $('#fDest').focus();
       }
@@ -184,11 +183,10 @@
   function renderFoot() {
     const next = $('#btnNext'), hint = $('#footHint'), b = book();
     renderBookTabs();
-    if (state.step === 1) { next.textContent = 'Dalje: korice →'; hint.textContent = `${state.books.length > 1 ? `Knjiga ${state.active + 1} od ${state.books.length}: ` : ''}${b.plan} ${stranica(b.plan)}, ${money(priceFor(b.plan))}`; }
-    if (state.step === 2) { const nx = nextStop(), many = state.books.length > 1; next.textContent = nx.step === 2 ? `Dalje: korice za knjigu ${nx.idx + 1} →` : many ? `Dalje: fotografije za knjigu ${nx.idx + 1} →` : 'Dalje: fotografije →'; hint.textContent = b.coverId ? `Izabrano: ${cover(b).name}` : ''; }
+    if (state.step === 1) { next.textContent = 'Dalje: korice →'; hint.textContent = `${b.plan} ${stranica(b.plan)}, ${money(priceFor(b.plan))}`; }
+    if (state.step === 2) { next.textContent = 'Dalje: fotografije →'; hint.textContent = b.coverId ? `Izabrano: ${cover(b).name}` : ''; }
     if (state.step === 3) {
-      const nx = nextStop(), many = state.books.length > 1;
-      next.textContent = nx.step === 3 ? `Dalje: fotografije za knjigu ${nx.idx + 1} →` : 'Dalje: slanje →';
+      next.textContent = moreBooks() ? `Dalje: knjiga ${state.books.length + 1} →` : 'Dalje: slanje →';
       const n = countOf(b);
       hint.textContent = !n ? '' : goodCount(n) ? `${n} ${stranica(n)}, ${money(priceFor(n))}` : countProblem(n);
     }
@@ -226,35 +224,33 @@
   }
   // koliko knjiga se pravi odjednom; svaka ima svoju destinaciju, korice i fotografije, a šalju se zajedno
   function renderQty() {
-    const n = state.books.length;
+    const n = totalBooks();
     $('#booksN').textContent = n;
-    $('#booksMinus').disabled = n <= 1;
+    $('#booksMinus').disabled = n <= Math.max(1, state.books.length);
     $('#booksPlus').disabled = n >= MAX_BOOKS;
   }
   function setBookCount(n) {
-    n = Math.max(1, Math.min(MAX_BOOKS, n));
-    while (state.books.length < n) state.books.push(newBook());
-    if (n < state.books.length) {
-      if (state.books.slice(n).some((x) => x.photos.length)) { toast('Ta knjiga već ima fotografije. Ukloni je na koraku Slanje.'); renderQty(); return; }
-      state.books.length = n;
-      state.active = Math.min(state.active, n - 1);
-    }
-    renderStep1(); renderBookTabs(); renderFoot();
+    n = Math.max(state.books.length, Math.min(MAX_BOOKS, n));
+    state.wanted = n;
+    renderQty(); renderBookTabs(); renderFoot();
   }
-  // gde vodi "Dalje": korice redom za svaku knjigu, pa fotografije redom za svaku, pa slanje
-  function nextStop() {
-    const s = state.step, a = state.active, n = state.books.length, B = state.books;
-    if (s === 1) { const i = B.findIndex((x) => !x.coverId); return { step: 2, idx: i >= 0 ? i : a }; }
-    if (s === 2) {
-      for (let i = a + 1; i < n; i++) if (!B[i].coverId) return { step: 2, idx: i };
-      const j = B.findIndex(pagesBad);
-      return { step: 3, idx: j >= 0 ? j : a };
-    }
-    if (s === 3) {
-      for (let i = a + 1; i < n; i++) if (pagesBad(B[i])) return { step: 3, idx: i };
-      return { step: 4, idx: a };
-    }
-    return { step: s + 1, idx: a };
+  // posle fotografija jedne knjige: ako je izabrano više knjiga, iskače poruka pa idemo na korice sledeće
+  const moreBooks = () => state.books.length < totalBooks();
+  function askNextBook() {
+    const n = state.books.length + 1, total = totalBooks();
+    $('#nbBadge').textContent = n;
+    $('#nbTitle').textContent = `Knjiga ${n - 1} je spremna`;
+    $('#nbLead').textContent = `Idemo na knjigu ${n} od ${total}. Prvo biraš korice.`;
+    $('#nbGo').textContent = `Nastavi na knjigu ${n}`;
+    $('#nextBook').hidden = false;
+    $('#nbGo').focus();
+  }
+  function startNextBook() {
+    $('#nextBook').hidden = true;
+    state.books.push(newBook());
+    state.active = state.books.length - 1;
+    book().autoCover = false;
+    goTo(2, true);
   }
   const ICON_PATHS = {
     pin: '<path d="M12 22s7-6.400 7-12a7 7 0 1 0-14 0c0 5.600 7 12 7 12Z"/><circle cx="12" cy="10" r="2.500"/>',
@@ -1064,7 +1060,7 @@
   function renderPhotos() {
     const b = book(), n = b.photos.length;
     $('#sideCover').innerHTML = coverOf(b);
-    $('#boardTitle').textContent = state.books.length > 1 ? `Fotografije za knjigu ${state.active + 1} od ${state.books.length}: ${b.title || b.dest || ''}` : `Fotografije: ${b.title || b.dest || 'tvoja knjiga'}`;
+    $('#boardTitle').textContent = totalBooks() > 1 ? `Fotografije za knjigu ${state.active + 1} od ${totalBooks()}: ${b.title || b.dest || ''}` : `Fotografije: ${b.title || b.dest || 'tvoja knjiga'}`;
     $('#drop').hidden = n > 0;
     $('#spreads').hidden = n === 0;
     $('#btnAdd').hidden = n === 0;
@@ -1749,6 +1745,7 @@
     return countProblem(b.photos.filter((p) => p.status === 'ready').length);
   }
   function renderSend() {
+    state.wanted = state.books.length;
     warmPrint();
     $('#fName').value = state.name;
     $('#fIg').value = state.ig;
@@ -2291,17 +2288,18 @@
   $('#btnNext').onclick = () => {
     if (state.step === 4) { send(); return; }
     if (!validate(state.step)) return;
-    const nx = nextStop();
-    state.active = nx.idx;
-    goTo(nx.step, true);
+    if (state.step === 3 && moreBooks()) { askNextBook(); return; }
+    goTo(state.step + 1);
   };
+  $('#nbGo').onclick = startNextBook;
+  $('#nbSkip').onclick = () => { $('#nextBook').hidden = true; state.wanted = state.books.length; goTo(4); };
   $('#booksMinus').onclick = () => setBookCount(state.books.length - 1);
   $('#booksPlus').onclick = () => setBookCount(state.books.length + 1);
   $('#btnBack').onclick = () => {
-    const s = state.step, a = state.active, last = state.books.length - 1;
-    if ((s === 2 || s === 3) && a > 0) { state.active = a - 1; goTo(s, true); return; }
-    if (s === 3 || s === 4) { state.active = last; goTo(s - 1, true); return; }
-    goTo(s - 1, true);
+    const st = state.step, a = state.active;
+    if (st === 2 && a > 0) { state.active = a - 1; goTo(3, true); return; }
+    if (st === 4) { state.active = state.books.length - 1; goTo(3, true); return; }
+    goTo(st - 1, true);
   };
   $('#stepper').addEventListener('click', (e) => {
     const b = e.target.closest('[data-go]');
@@ -2319,7 +2317,7 @@
   });
   $('#logo').addEventListener('click', (e) => { e.preventDefault(); goTo(1, true); });
   $('#btnRestart').onclick = () => {
-    state.books = [newBook()]; state.active = 0; state.reached = 1; state.sent = false;
+    state.books = [newBook()]; state.wanted = 1; state.active = 0; state.reached = 1; state.sent = false;
     bg.orderId = null; bg.orderP = null; bg.queue = []; bg.LANES = 6;
     goTo(1, true);
   };

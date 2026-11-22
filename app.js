@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261122e';
+  const APP_VER = '20261122f';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -2293,8 +2293,8 @@
   };
   $('#nbGo').onclick = startNextBook;
   $('#nbSkip').onclick = () => { $('#nextBook').hidden = true; state.wanted = state.books.length; goTo(4); };
-  $('#booksMinus').onclick = () => setBookCount(state.books.length - 1);
-  $('#booksPlus').onclick = () => setBookCount(state.books.length + 1);
+  $('#booksMinus').onclick = () => setBookCount(totalBooks() - 1);
+  $('#booksPlus').onclick = () => setBookCount(totalBooks() + 1);
   $('#btnBack').onclick = () => {
     const st = state.step, a = state.active;
     if (st === 2 && a > 0) { state.active = a - 1; goTo(3, true); return; }

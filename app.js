@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261122f';
+  const APP_VER = '20261122g';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -1705,7 +1705,22 @@
     leaf.addEventListener('transitionend', finish, { once: true });
     setTimeout(finish, 800);
   }
+  let flipFrom = null;
+  // kad ima više knjiga, u pregledu se bira koja se lista
+  function renderFlipBooks() {
+    const el = $('#flipBooks'), many = state.books.length > 1;
+    el.hidden = !many;
+    if (many) el.innerHTML = state.books.map((b, i) => `<button type="button" data-fb="${i}" class="${i === state.active ? 'on' : ''}"${b.photos.some((p) => p.status === 'ready') ? '' : ' disabled'}><i>${i + 1}</i><span>${esc(b.title || b.dest || 'Knjiga ' + (i + 1))}</span></button>`).join('');
+  }
+  $('#flipBooks').addEventListener('click', (e) => {
+    const x = e.target.closest('[data-fb]');
+    if (!x || x.disabled) return;
+    state.active = +x.dataset.fb;
+    openFlip();
+  });
   function openFlip() {
+    if (flipFrom === null) flipFrom = state.active;
+    renderFlipBooks();
     spreadsData = buildSpreads();
     sp = 0;
     $('#flip').hidden = false;
@@ -1713,7 +1728,10 @@
     sizeBook();
     drawSpread();
   }
-  function closeFlip() { $('#flip').hidden = true; document.documentElement.style.overflow = ''; }
+  function closeFlip() {
+    $('#flip').hidden = true; document.documentElement.style.overflow = '';
+    if (flipFrom !== null) { state.active = flipFrom; flipFrom = null; }
+  }
   $('#btnPreview').onclick = openFlip;
   $('#flipClose').onclick = closeFlip;
   $('#flipPrev').onclick = () => turn(-1);
@@ -1768,6 +1786,7 @@
             ${bad ? '' : `<strong class="order-price">${money(priceFor(n))}</strong>`}
           </div>
           ${ready.length ? `<div class="order-strip">${strip}${rest > 0 ? `<span class="ot more">+${rest}</span>` : ''}</div>` : ''}
+          ${ready.length ? `<button class="order-flip" type="button" data-flip="${i}">Prelistaj knjigu</button>` : ''}
           ${state.books.length > 1 ? `<button class="order-x" type="button" data-del="${i}" aria-label="Ukloni knjigu">×</button>` : ''}
         </div></article>`;
     }).join('');

@@ -113,6 +113,15 @@ svg { display: block; }
 .nb-badge { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--blue); color: #fff; font: 800 28px/1 var(--head); box-shadow: 0 14px 26px -12px var(--blue); }
 .nb-actions { display: grid; gap: 8px; width: 100%; }
 .nb-actions .btn { width: 100%; justify-content: center; }
+.flip-books { position: absolute; top: 14px; left: 0; right: 0; z-index: 3; display: flex; gap: 8px; justify-content: safe center; padding: 0 64px; overflow-x: auto; }
+.flip-books button { all: unset; cursor: pointer; flex: none; display: inline-flex; align-items: center; gap: 8px; max-width: 200px; padding: 5px 14px 5px 5px; border-radius: 99px; background: rgba(255, 255, 255, .75); color: var(--navy, #153a55); font-size: 14px; font-weight: 600; box-shadow: 0 6px 16px -10px var(--shadow); }
+.flip-books button i { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #fff; color: var(--blue); font: 800 13px/1 var(--head); font-style: normal; }
+.flip-books button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flip-books button.on { background: var(--blue); color: #fff; }
+.flip-books button:disabled { opacity: .45; cursor: default; }
+.flip-books button:focus-visible { outline: 2px solid var(--sky-deep); outline-offset: 2px; }
+.order-flip { all: unset; cursor: pointer; display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--sky-deep); }
+.order-flip:hover { text-decoration: underline; }
 .price-head { margin-bottom: 14px; }
 .price-head h2 { font-size: 22px; margin: 0; }
 .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }

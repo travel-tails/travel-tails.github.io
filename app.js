@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261121b';
+  const APP_VER = '20261122a';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -41,6 +41,7 @@
   const newBook = () => ({ id: uid(), dest: '', coverId: null, title: '', sub: '', year: YEAR, bg: null, ink: null, accent: null, swatch: 0, inkSet: false, note: '', photos: [], autoCover: true, plan: 60, back: { layout: 'text', title: null, sub: null, picks: [], extra: [] }, spine: null });
   const state = { step: 1, reached: 1, name: '', ig: '', books: [newBook()], active: 0, kind: 'travel', chip: 'pop', ship: 'post', city: '', addr: '', phone: '', note: '', sent: false };
   const book = () => state.books[state.active];
+  const MAX_BOOKS = 10;
   const cover = (b) => (b.coverId ? coverById(b.coverId) : null);
   const coverOf = (b) => coverSVG(cover(b) || CUSTOM, { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent });
 
@@ -112,9 +113,11 @@
   }
   function renderBookTabs() {
     const el = $('#bookTabs');
-    const show = state.books.length > 1 && (state.step === 2 || state.step === 3);
+    // više knjiga u jednoj porudžbini: kartice knjiga + "Nova knjiga" (na koraku 3 čim ima fotografija)
+    const show = (state.step === 2 || state.step === 3) && (state.books.length > 1 || (state.step === 3 && countOf(book()) > 0));
     el.hidden = !show;
-    if (show) el.innerHTML = state.books.map((b, i) => `<button type="button" data-book="${i}" class="${i === state.active ? 'on' : ''}">Knjiga ${i + 1}${b.title || b.dest ? ': ' + esc(b.title || b.dest) : ''}</button>`).join('');
+    if (show) el.innerHTML = state.books.map((b, i) => `<button type="button" data-book="${i}" class="${i === state.active ? 'on' : ''}">Knjiga ${i + 1}${b.title || b.dest ? ': ' + esc(b.title || b.dest) : ''}</button>`).join('')
+      + (state.books.length < MAX_BOOKS ? `<button type="button" class="add" data-newbook>+ Nova knjiga</button>` : '');
   }
 
   function validate(n, silent) {
@@ -172,6 +175,7 @@
 
   function renderFoot() {
     const next = $('#btnNext'), hint = $('#footHint'), b = book();
+    renderBookTabs();
     if (state.step === 1) { next.textContent = 'Dalje: korice →'; hint.textContent = `${b.plan} ${stranica(b.plan)}, ${money(priceFor(b.plan))}`; }
     if (state.step === 2) { next.textContent = 'Dalje: fotografije →'; hint.textContent = b.coverId ? `Izabrano: ${cover(b).name}` : ''; }
     if (state.step === 3) {
@@ -1766,14 +1770,16 @@
       toast(`Knjiga je uklonjena.`, () => { state.books.splice(i, 0, b); renderSend(); renderFoot(); });
     }
   });
-  $('#addBook').onclick = () => {
+  function addNewBook() {
+    if (state.books.length >= MAX_BOOKS) { toast(`Najviše ${MAX_BOOKS} knjiga u jednoj porudžbini.`); return; }
     state.books.push(newBook());
     state.active = state.books.length - 1;
     const b = book();
     b.autoCover = false;
     goTo(2, true);
     toast(`Knjiga ${state.books.length}: izaberi korice.`);
-  };
+  }
+  $('#addBook').onclick = addNewBook;
   [['#fCity', 'city', 'City'], ['#fAddr', 'addr', 'Addr'], ['#fPhone', 'phone', 'Phone']].forEach(([s, k, err]) => {
     $(s).addEventListener('input', (e) => { state[k] = e.target.value; store.save(); if (err && e.target.classList.contains('invalid')) setErr(err, '', e.target); });
   });
@@ -2253,6 +2259,7 @@
     goTo(n);
   });
   $('#bookTabs').addEventListener('click', (e) => {
+    if (e.target.closest('[data-newbook]')) { addNewBook(); return; }
     const b = e.target.closest('[data-book]');
     if (!b) return;
     state.active = +b.dataset.book;

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261122b';
+  const APP_VER = '20261122c';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -222,7 +222,6 @@
     $('#booksN').textContent = n;
     $('#booksMinus').disabled = n <= 1;
     $('#booksPlus').disabled = n >= MAX_BOOKS;
-    $('#multiNote').textContent = n > 1 ? `Knjiga ${state.active + 1} od ${n}. Posle nje te vodimo kroz sledeću.` : 'Možeš da napraviš i pošalješ više knjiga odjednom.';
   }
   function setBookCount(n) {
     n = Math.max(1, Math.min(MAX_BOOKS, n));

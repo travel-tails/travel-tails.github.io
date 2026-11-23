@@ -141,6 +141,12 @@
                 <div class="field"><label for="cSub">Podnaslov</label><input id="cSub" maxlength="26" autocomplete="off"></div>
                 <div class="field" id="cYearField"><label for="cYear">Godina</label><input id="cYear" maxlength="14" autocomplete="off" inputmode="numeric"></div>
               </div>
+              <div id="ptBox" hidden>
+                <span class="lbl">Tvoje fotografije za korice <em id="ptNeed"></em></span>
+                <div class="pt-photos" id="ptPhotos"></div>
+                <input type="file" id="ptFile" accept="image/*,.heic,.heif" hidden>
+                <div class="pt-texts" id="ptTexts"></div>
+              </div>
               <div class="field" id="cCustomField" hidden>
                 <label for="cCustom">Opiši željeni dizajn</label>
                 <textarea id="cCustom" rows="2"></textarea>
@@ -445,12 +451,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="covers-data.js?v=20261123a"></script>
-<script src="places-data.js?v=20261123a"></script>
-<script src="figma.js?v=20261123a"></script>
-<script src="covers.js?v=20261123a"></script>
-<script src="covers-config.js?v=20261123a"></script>
-<script src="catalog.js?v=20261123a"></script>
-<script src="app.js?v=20261123a"></script>
+<script src="covers-data.js?v=20261123b"></script>
+<script src="places-data.js?v=20261123b"></script>
+<script src="figma.js?v=20261123b"></script>
+<script src="covers.js?v=20261123b"></script>
+<script src="photo-covers.js?v=20261123b"></script>
+<script src="covers-config.js?v=20261123b"></script>
+<script src="catalog.js?v=20261123b"></script>
+<script src="app.js?v=20261123b"></script>
 </body>
 </html>

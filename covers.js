@@ -568,9 +568,9 @@
     let txt = `<text x="210" y="${base}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="${cfg.weight}" font-size="${size}" fill="${ink}" letter-spacing="${cfg.upper ? -1 : -0.5}">${esc(title)}</text>`;
     let y = base + 28;
     if (c.subBottom && sub) {
-      txt += `<text x="210" y="552" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="800" font-size="46" fill="${accent}">${esc(sub)}</text>`;
+      txt += `<text x="210" y="552" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="${cfg.weight}" font-size="46" fill="${accent}">${esc(sub)}</text>`;
     } else if (sub) {
-      txt += `<text x="${right}" y="${y}" text-anchor="end" font-family="${esc(FAMILY)}" font-weight="800" font-size="23" fill="${accent}">${esc(cfg.upper ? sub.toUpperCase() : sub)}</text>`;
+      txt += `<text x="${right}" y="${y}" text-anchor="end" font-family="${esc(FAMILY)}" font-weight="${cfg.weight}" font-size="23" fill="${accent}">${esc(cfg.upper ? sub.toUpperCase() : sub)}</text>`;
       y += 26;
     }
     if (year && !c.subBottom) {
@@ -594,7 +594,7 @@
         : `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="3" fill="#fff" opacity=".4"/>`;
     });
     out += `<text x="210" y="${base}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="${cfg.weight}" font-size="${size}" fill="${o.ink}" letter-spacing="-.5">${esc(title)}</text>`;
-    if (o.sub) out += `<text x="210" y="${f(base + 27)}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="800" font-size="20" fill="${o.accent}">${esc(cfg.upper ? o.sub.toUpperCase() : o.sub)}</text>`;
+    if (o.sub) out += `<text x="210" y="${f(base + 27)}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="${cfg.weight}" font-size="20" fill="${o.accent}">${esc(cfg.upper ? o.sub.toUpperCase() : o.sub)}</text>`;
     return `<svg class="cover-svg" viewBox="0 0 420 594" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zadnja korica">${out}</svg>`;
   }
 

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261123a';
+  const APP_VER = '20261123b';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -45,7 +45,11 @@
   const totalBooks = () => Math.max(state.wanted || 1, state.books.length);
   const pagesBad = (b) => !goodCount(b.photos.filter((p) => p.status === 'ready').length);
   const cover = (b) => (b.coverId ? coverById(b.coverId) : null);
-  const coverOf = (b) => coverSVG(cover(b) || CUSTOM, { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent });
+  const coverOf = (b) => coverSVG(cover(b) || CUSTOM, { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent, pt: b.pt });
+  /* Korice sa fotografijom kupca: tekstovi (b.pt.txt) i fotografije za svako mesto (b.pt.ph) */
+  const ptVal = (c, b, t) => (b.pt && b.pt.txt[t.k] != null ? b.pt.txt[t.k] : t.s);
+  const ptTitle = (c, b) => c.t.map((t) => ptVal(c, b, t).trim()).filter(Boolean).join(' ');
+  const ptMissing = (b) => { const c = cover(b); return c && c.photo ? c.p.filter((_, i) => !(b.pt && b.pt.ph[i])).length : 0; };
 
   /* Rikna */
   const spineText = (b) => (b.spine !== null ? b.spine : [b.title || b.dest, b.sub].filter(Boolean).join(' '));
@@ -143,6 +147,17 @@
         selectCover('custom', true);
         toast('Nastavljaš sa osnovnim dizajnom, a dizajn dogovaramo na Instagramu.');
       }
+      const miss = ptMissing(b);
+      if (miss) {
+        if (!silent) {
+          const n = cover(b).p.length;
+          toast(n === 1 ? 'Ubaci svoju fotografiju na korice (klikni „+ Dodaj sliku“).' : `Ubaci svoje fotografije na korice: nedostaje još ${miss} od ${n}.`);
+          showFace('front');
+          if (matchMedia('(max-width:820px)').matches) document.body.classList.add('sheet-open');
+        }
+        return false;
+      }
+      if (b.pt && b.pt.ph.some((p) => p && !p.url)) { if (!silent) toast('Još učitavamo fotografiju za korice, sačekaj trenutak.'); return false; }
       return true;
     }
     if (n === 3) {
@@ -637,6 +652,8 @@
       b.swatch = 0;
       b.inkSet = false;
       b.spine = null;
+      b.pt = c.photo ? { txt: {}, ph: [] } : null;
+      if (c.photo) b.title = ptTitle(c, b);
     }
     if (!b.dest) b.dest = id === 'custom' ? b.title : as || c.name;
     if (silent) return;
@@ -679,7 +696,10 @@
     $('#cSub').closest('.field').hidden = !!roles && !roles.has('s') && !(roles.has('t') && !((cv.adj || {}).s || {}).hide);
     $('#cYearField').hidden = roles ? !roles.has('y') : !!cv.subBottom;
     $('#cYearField').style.display = '';
-    $('#swatches').closest('.field').hidden = !!(cv.fig && (cv.fig.lock || cv.fig.fx));
+    $('#swatches').closest('.field').hidden = !!(cv.fig && (cv.fig.lock || cv.fig.fx)) || !!cv.photo;
+    $('#ptBox').hidden = !cv.photo;
+    $('#tunerMain .grid3').hidden = !!cv.photo;
+    if (cv.photo) renderPt();
     if (!$('#faceTabs .on')) {
       const shown = ($$('#tunerMain .pane').find((x) => !x.hidden) || {}).dataset;
       const f = shown ? shown.pane : 'front';
@@ -687,6 +707,65 @@
     }
     renderSwatches();
   }
+  function renderPt() {
+    const b = book(), c = cover(b);
+    if (!c || !c.photo) return;
+    const n = c.p.length, miss = ptMissing(b);
+    $('#ptNeed').textContent = miss ? (n === 1 ? 'obavezno' : `još ${miss} od ${n}`) : '✓';
+    $('#ptNeed').classList.toggle('ok', !miss);
+    $('#ptPhotos').innerHTML = c.p.map((_, i) => {
+      const p = b.pt.ph[i];
+      const cls = p ? (p.thumb ? 'has' : 'busy') : 'need';
+      return `<button type="button" data-pt="${i}" class="${cls}"${p && p.thumb ? ` style="background-image:url('${p.thumb}')"` : ''} aria-label="${p ? 'Promeni' : 'Dodaj'} fotografiju${n > 1 ? ' ' + (i + 1) : ''}">${p ? (p.thumb ? '' : 'Učitavam…') : `+ Dodaj${n > 1 ? '<br>' + (i + 1) : '<br>sliku'}`}</button>`;
+    }).join('');
+    const box = $('#ptTexts');
+    if (box.dataset.for !== c.id + '|' + b.id) {
+      box.dataset.for = c.id + '|' + b.id;
+      box.innerHTML = c.t.map((t) => `<div class="field"><label for="pt_${t.k}">${esc(t.label)}</label><input id="pt_${t.k}" data-ptk="${t.k}" maxlength="40" autocomplete="off"></div>`).join('');
+    }
+    c.t.forEach((t) => { const el = $('#pt_' + t.k); if (el && document.activeElement !== el) el.value = ptVal(c, b, t); });
+  }
+  let ptSlot = 0;
+  $('#ptPhotos').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-pt]');
+    if (!t) return;
+    ptSlot = +t.dataset.pt;
+    $('#ptFile').value = '';
+    $('#ptFile').click();
+  });
+  $('#ptFile').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0], b = book(), c = cover(b), i = ptSlot;
+    if (!file || !c || !c.photo) return;
+    if (!isImage(file)) { toast('Izaberi fotografiju (JPG, PNG ili HEIC).'); return; }
+    const p = { file, name: file.name || 'slika.jpg' };
+    b.pt.ph[i] = p;
+    renderPt();
+    try {
+      const blob = isHeic(file) ? await heicToJpeg(file) : file;
+      const bmp = await decodeImage(blob);
+      p.w = bmp.width; p.h = bmp.height;
+      const sc = Math.min(1, 900 / Math.max(p.w, p.h));
+      const cv = makeCanvas(Math.round(p.w * sc), Math.round(p.h * sc));
+      cv.getContext('2d').drawImage(bmp.src, 0, 0, cv.width, cv.height);
+      if (bmp.close) bmp.close();
+      p.url = URL.createObjectURL(blob);
+      p.thumb = URL.createObjectURL(await canvasBlob(cv, 0.85));
+      if (Math.min(p.w, p.h) < 900) toast('Ova fotografija je male rezolucije, na štampi može biti mutna. Ako imaš veću, ubaci nju.');
+    } catch (err) {
+      if (b.pt && b.pt.ph[i] === p) b.pt.ph[i] = null;
+      toast('Ovu fotografiju ne možemo da otvorimo. Probaj drugu.');
+    }
+    if (book() === b) { renderPt(); renderMock(); }
+  });
+  $('#ptTexts').addEventListener('input', (e) => {
+    const k = e.target.dataset.ptk, b = book(), c = cover(b);
+    if (!k || !c || !c.photo) return;
+    b.pt.txt[k] = e.target.value;
+    b.title = ptTitle(c, b);
+    if (b.spine === null) $('#cSpine').value = spineText(b);
+    renderMock();
+    renderBookTabs();
+  });
   function renderSwatches() {
     const b = book();
     $('#swatches').innerHTML = SWATCHES.map((s, i) => `<button type="button" data-sw="${i}" class="${i === 0 ? 'orig' : ''} ${b.swatch === i ? 'on' : ''}" ${s ? `style="background:${s[0]}"` : ''} aria-label="${i === 0 ? 'Originalna boja' : 'Boja ' + i}"></button>`).join('') +
@@ -1922,7 +2001,7 @@
     await Promise.all(Array.from({ length: Math.min(5, items.length) }, worker));
   }
   const printCache = new Map();
-  const printKey = (b, i) => JSON.stringify([i, b.coverId, b.coverAs, b.title, b.sub, b.year, b.bg, b.ink, b.accent, b.spine, b.back, countOf(b)]);
+  const printKey = (b, i) => JSON.stringify([i, b.coverId, b.coverAs, b.title, b.sub, b.year, b.bg, b.ink, b.accent, b.spine, b.back, countOf(b), b.pt ? [b.pt.txt, b.pt.ph.map((p) => p && p.url)] : null]);
   function printFiles(b, i) {
     const key = printKey(b, i);
     if (!printCache.has(key)) {
@@ -1931,6 +2010,7 @@
         { blob: await png300(await frontPrint(b)), filename: `${name} - PREDNJA KORICA (A4 300dpi).png`, mimeType: 'image/png' },
         { blob: await png300(await backPrint(b)), filename: `${name} - ZADNJA KORICA (A4 300dpi).png`, mimeType: 'image/png' },
         { blob: await png300(await spinePrint(b)), filename: `${name} - RIKNA 30x297mm (300dpi).png`, mimeType: 'image/png' },
+        ...ptOriginals(b).map((x) => Object.assign(x, { filename: `${name} - ${x.filename}` })),
       ])().catch((err) => { printCache.delete(key); throw err; }));
     }
     return printCache.get(key);
@@ -2197,8 +2277,19 @@
     cv.getContext('2d').drawImage(bmp.src, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, cv.width, cv.height);
     return cv.toDataURL('image/jpeg', 0.95);
   }
+  // originalne fotografije kupca sa prednje korice (za svaki slučaj, uz gotov fajl korice)
+  function ptOriginals(b) {
+    const c = cover(b);
+    if (!c || !c.photo || !b.pt) return [];
+    return b.pt.ph.map((p, i) => {
+      if (!p) return null;
+      const m = (p.file.name || '').match(/\.([a-z0-9]+)$/i);
+      return { blob: p.file, filename: `KORICA fotografija ${i + 1}${m ? '.' + m[1].toLowerCase() : '.jpg'}`, mimeType: p.file.type || 'image/jpeg' };
+    }).filter(Boolean);
+  }
   async function frontPrint(b) {
     const c = cover(b) || CUSTOM;
+    if (c.photo) return TTP.print(c, b.pt || { txt: {}, ph: [] }, async (p) => decodeImage(await (await fetch(p.url)).blob()));
     const o = { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent };
     return c.fig ? TTF.printCanvas(c, o) : svgCanvas(coverSVG(c, o), TTF.PW, TTF.PH);
   }
@@ -2261,6 +2352,10 @@
         `  Boje: korice ${b.bg || c.bg}, naslov ${b.ink || c.ink || 'original'}, podnaslov ${b.accent || c.accent || 'original'}`,
         `  Zadnja korica: ${{ none: 'prazna', text: 'samo tekst', one: '1 fotografija', four: '4 fotografije' }[b.back.layout]}`,
         `  Rikna u fajlu: 30 x 297 mm (300 dpi)`);
+      if (c.photo && b.pt) {
+        lines.push(`  Korice sa fotografijom kupca: ${c.t.map((t) => `${t.label}: "${ptVal(c, b, t)}"`).join(', ')}`,
+          `  Fotografije na koricama: ${b.pt.ph.filter(Boolean).length} (uključene u fajl prednje korice, originali kao "KORICA fotografija N")`);
+      }
       if (b.note) lines.push(`  Napomena: ${b.note}`);
       lines.push('');
     });
@@ -2275,6 +2370,7 @@
       dir.file('prednja-korica-A4-300dpi.png', await png300(await frontPrint(b)), { compression: 'STORE' });
       dir.file('zadnja-korica-A4-300dpi.png', await png300(await backPrint(b)), { compression: 'STORE' });
       dir.file(`rikna-30x297mm-300dpi.png`, await png300(await spinePrint(b)), { compression: 'STORE' });
+      ptOriginals(b).forEach((x) => dir.file(x.filename, x.blob, { compression: 'STORE' }));
       const ph = dir.folder('fotografije');
       b.photos.filter((p) => p.status === 'ready').forEach((p, k) => {
         const ext = (p.name.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0].toLowerCase();

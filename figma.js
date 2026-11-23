@@ -81,7 +81,9 @@
     const add = (t, s, x, y, z, anchor, fill) => { if (!hidden(c, t.r)) ops.push({ t, s, x, y, z, anchor, fill }); };
     const T = stdT(c);
     const titles = T.filter((t) => t.r === 't');
-    const subs = T.filter((t) => t.r === 's');
+    // podnaslov je uvek podebljan isto kao naslov kada je istim fontom (Raleway); ukrasni fontovi ostaju kao u dizajnu
+    const sameFam = (a, b) => (a.f || 'Raleway') === (b.f || 'Raleway');
+    const subs = T.filter((t) => t.r === 's').map((t) => (titles.length && sameFam(t, titles[0]) && t.wt < titles[0].wt ? Object.assign({}, t, { wt: titles[0].wt }) : t));
     const year = T.find((t) => t.r === 'y');
     const origTitle = titles.map((t) => t.s.replace(/\s+/g, ' ').trim()).join(' ');
     const A = adjOf(c, 't');
@@ -159,7 +161,7 @@
       const t0 = titles[0], a = adjOf(c, 's');
       const z0 = Math.max(130, Math.min(250, t0.z * 0.28)) * a.s;
       const caps = !!t0.up || isCaps(titles.map((t) => t.s).join(''));
-      const pt = { r: 's', s: addSub, x: 0, y: 0, w: PW, h: z0, wt: 800, z: z0, ls: -0.03 * z0, lh: 0, c: o.accent || (year && year.c) || o.ink || t0.c, a: 'R', up: caps ? 1 : 0 };
+      const pt = { r: 's', s: addSub, x: 0, y: 0, w: PW, h: z0, wt: t0.wt || 800, z: z0, ls: -0.03 * z0, lh: 0, c: o.accent || (year && year.c) || o.ink || t0.c, a: 'R', up: caps ? 1 : 0 };
       if (t0.f) pt.f = t0.f;
       const txt = caps ? addSub.toLocaleUpperCase('sr') : addSub;
       const yo = ops.find((p) => p.t.r === 'y');

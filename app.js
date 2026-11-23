@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261123c';
+  const APP_VER = '20261123d';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -711,12 +711,13 @@
     const b = book(), c = cover(b);
     if (!c || !c.photo) return;
     const n = c.p.length, miss = ptMissing(b);
+    if (ptSlot >= n) ptSlot = 0;
     $('#ptNeed').textContent = miss ? (n === 1 ? 'obavezno' : `još ${miss} od ${n}`) : '✓';
     $('#ptNeed').classList.toggle('ok', !miss);
     $('#ptPhotos').innerHTML = c.p.map((_, i) => {
       const p = b.pt.ph[i];
-      const cls = p ? (p.thumb ? 'has' : 'busy') : 'need';
-      return `<button type="button" data-pt="${i}" class="${cls}"${p && p.thumb ? ` style="background-image:url('${p.thumb}')"` : ''} aria-label="${p ? 'Promeni' : 'Dodaj'} fotografiju${n > 1 ? ' ' + (i + 1) : ''}">${p ? (p.thumb ? '' : 'Učitavam…') : `+ Dodaj${n > 1 ? '<br>' + (i + 1) : '<br>sliku'}`}</button>`;
+      const cls = (p ? (p.thumb ? 'has' : 'busy') : 'need') + (p && p.thumb && i === ptSlot && n > 1 ? ' sel' : '');
+      return `<button type="button" data-pt="${i}" class="${cls}"${p && p.thumb ? ` style="background-image:url('${p.thumb}')"` : ''} aria-label="${p ? 'Podesi' : 'Dodaj'} fotografiju${n > 1 ? ' ' + (i + 1) : ''}">${p ? (p.thumb ? '' : 'Učitavam…') : `+ Dodaj${n > 1 ? '<br>' + (i + 1) : '<br>sliku'}`}</button>`;
     }).join('');
     const box = $('#ptTexts');
     if (box.dataset.for !== c.id + '|' + b.id) {
@@ -724,12 +725,69 @@
       box.innerHTML = c.t.map((t) => `<div class="field"><label for="pt_${t.k}">${esc(t.label)}</label><input id="pt_${t.k}" data-ptk="${t.k}" maxlength="40" autocomplete="off"></div>`).join('');
     }
     c.t.forEach((t) => { const el = $('#pt_' + t.k); if (el && document.activeElement !== el) el.value = ptVal(c, b, t); });
+    renderCrop();
   }
+  /* Podešavanje slike u okviru: prevlačenje pomera sliku, klizač je uvećava.
+     Koliko može da se pomera zavisi od slike i okvira (višak slike van okvira). */
   let ptSlot = 0;
+  const cropOf = () => { const b = book(), c = cover(b); const p = c && c.photo && b.pt && b.pt.ph[ptSlot]; return p && p.thumb && p.w ? { b, c, p, s: c.p[ptSlot] } : null; };
+  function renderCrop() {
+    const k = cropOf();
+    $('#ptCrop').hidden = !k;
+    if (!k) return;
+    const [, , w, h] = k.s, f = TTP.fit(w, h, k.p.w, k.p.h, k.p), fr = $('#ptFrame'), img = $('#ptImg');
+    const fw = Math.min(150, 130 * (w / h));
+    fr.style.width = fw + 'px';
+    fr.style.height = (fw * h) / w + 'px';
+    fr.classList.toggle('gray', !!k.c.gray);
+    if (img.getAttribute('src') !== k.p.thumb) img.src = k.p.thumb;
+    Object.assign(img.style, { left: (f.dx / w) * 100 + '%', top: (f.dy / h) * 100 + '%', width: (f.dw / w) * 100 + '%', height: (f.dh / h) * 100 + '%' });
+    const zIn = $('#ptZoom');
+    if (document.activeElement !== zIn) zIn.value = Math.round((k.p.z || 1) * 100);
+    const mx = f.ox > 1, my = f.oy > 1;
+    fr.classList.toggle('fixed', !mx && !my);
+    $('#ptHint').textContent = mx && my ? 'Prevuci sliku u bilo kom pravcu.' : my ? 'Prevuci sliku gore-dole. Uvećaj je za pomeranje levo-desno.' : mx ? 'Prevuci sliku levo-desno. Uvećaj je za pomeranje gore-dole.' : 'Slika taman staje u okvir. Uvećaj je da bi mogla da je pomeraš.';
+  }
+  let cropRaf = 0;
+  const cropChanged = () => { renderCrop(); if (!cropRaf) cropRaf = requestAnimationFrame(() => { cropRaf = 0; renderMock(); }); };
+  (function () {
+    const fr = $('#ptFrame');
+    let drag = null;
+    fr.addEventListener('pointerdown', (e) => {
+      const k = cropOf();
+      if (!k) return;
+      drag = { x: e.clientX, y: e.clientY, cx: k.p.cx ?? 0.5, cy: k.p.cy ?? 0.5 };
+      fr.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    fr.addEventListener('pointermove', (e) => {
+      const k = drag && cropOf();
+      if (!k) return;
+      const [, , w, h] = k.s, f = TTP.fit(w, h, k.p.w, k.p.h, k.p), unit = w / fr.clientWidth;
+      if (f.ox > 1) k.p.cx = clamp(drag.cx - ((e.clientX - drag.x) * unit) / f.ox, 0, 1);
+      if (f.oy > 1) k.p.cy = clamp(drag.cy - ((e.clientY - drag.y) * unit) / f.oy, 0, 1);
+      cropChanged();
+    });
+    const end = () => { drag = null; };
+    fr.addEventListener('pointerup', end);
+    fr.addEventListener('pointercancel', end);
+    fr.addEventListener('wheel', (e) => {
+      const k = cropOf();
+      if (!k) return;
+      e.preventDefault();
+      k.p.z = clamp((k.p.z || 1) * (e.deltaY < 0 ? 1.06 : 1 / 1.06), 1, TTP.ZMAX);
+      cropChanged();
+    }, { passive: false });
+  })();
+  $('#ptZoom').addEventListener('input', (e) => { const k = cropOf(); if (!k) return; k.p.z = clamp(+e.target.value / 100, 1, TTP.ZMAX); cropChanged(); });
+  $('#ptCenter').addEventListener('click', () => { const k = cropOf(); if (!k) return; k.p.cx = k.p.cy = 0.5; k.p.z = 1; cropChanged(); });
+  $('#ptChange').addEventListener('click', () => { $('#ptFile').value = ''; $('#ptFile').click(); });
   $('#ptPhotos').addEventListener('click', (e) => {
     const t = e.target.closest('[data-pt]');
     if (!t) return;
     ptSlot = +t.dataset.pt;
+    const b = book(), p = b.pt && b.pt.ph[ptSlot];
+    if (p && p.thumb) { renderPt(); return; }
     $('#ptFile').value = '';
     $('#ptFile').click();
   });
@@ -737,8 +795,9 @@
     const file = e.target.files && e.target.files[0], b = book(), c = cover(b), i = ptSlot;
     if (!file || !c || !c.photo) return;
     if (!isImage(file)) { toast('Izaberi fotografiju (JPG, PNG ili HEIC).'); return; }
-    const p = { file, name: file.name || 'slika.jpg' };
+    const p = { file, name: file.name || 'slika.jpg', cx: 0.5, cy: 0.5, z: 1 };
     b.pt.ph[i] = p;
+    ptSlot = i;
     renderPt();
     try {
       const blob = isHeic(file) ? await heicToJpeg(file) : file;
@@ -2001,7 +2060,7 @@
     await Promise.all(Array.from({ length: Math.min(5, items.length) }, worker));
   }
   const printCache = new Map();
-  const printKey = (b, i) => JSON.stringify([i, b.coverId, b.coverAs, b.title, b.sub, b.year, b.bg, b.ink, b.accent, b.spine, b.back, countOf(b), b.pt ? [b.pt.txt, b.pt.ph.map((p) => p && p.url)] : null]);
+  const printKey = (b, i) => JSON.stringify([i, b.coverId, b.coverAs, b.title, b.sub, b.year, b.bg, b.ink, b.accent, b.spine, b.back, countOf(b), b.pt ? [b.pt.txt, b.pt.ph.map((p) => p && [p.url, p.cx, p.cy, p.z])] : null]);
   function printFiles(b, i) {
     const key = printKey(b, i);
     if (!printCache.has(key)) {

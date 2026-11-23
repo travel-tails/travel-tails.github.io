@@ -144,6 +144,15 @@
               <div id="ptBox" hidden>
                 <span class="lbl">Tvoje fotografije za korice <em id="ptNeed"></em></span>
                 <div class="pt-photos" id="ptPhotos"></div>
+                <div class="pt-crop" id="ptCrop" hidden>
+                  <div class="pt-frame" id="ptFrame"><img id="ptImg" alt="" draggable="false"></div>
+                  <div class="pt-ctl">
+                    <label for="ptZoom">Uvećanje</label>
+                    <input type="range" id="ptZoom" min="100" max="400" step="1" value="100">
+                    <p class="help" id="ptHint"></p>
+                    <div class="pt-act"><button class="btn soft" type="button" id="ptCenter">Na sredinu</button><button class="btn soft" type="button" id="ptChange">Zameni sliku</button></div>
+                  </div>
+                </div>
                 <input type="file" id="ptFile" accept="image/*,.heic,.heif" hidden>
                 <div class="pt-texts" id="ptTexts"></div>
               </div>
@@ -451,13 +460,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="covers-data.js?v=20261123c"></script>
-<script src="places-data.js?v=20261123c"></script>
-<script src="figma.js?v=20261123c"></script>
-<script src="covers.js?v=20261123c"></script>
-<script src="photo-covers.js?v=20261123c"></script>
-<script src="covers-config.js?v=20261123c"></script>
-<script src="catalog.js?v=20261123c"></script>
-<script src="app.js?v=20261123c"></script>
+<script src="covers-data.js?v=20261123d"></script>
+<script src="places-data.js?v=20261123d"></script>
+<script src="figma.js?v=20261123d"></script>
+<script src="covers.js?v=20261123d"></script>
+<script src="photo-covers.js?v=20261123d"></script>
+<script src="covers-config.js?v=20261123d"></script>
+<script src="catalog.js?v=20261123d"></script>
+<script src="app.js?v=20261123d"></script>
 </body>
 </html>

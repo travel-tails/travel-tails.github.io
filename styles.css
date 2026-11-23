@@ -302,6 +302,18 @@ input.invalid { border-color: var(--err) !important; }
 .pt-photos button.has::after { content: '↻'; position: absolute; right: 3px; bottom: 3px; width: 18px; height: 18px; border-radius: 50%; background: rgba(255, 255, 255, .92); color: var(--ink, #153a55); font-size: 12px; display: grid; place-items: center; }
 .pt-photos button.busy { color: var(--muted); }
 .pt-photos button:focus-visible { outline: 2px solid var(--sky-deep); outline-offset: 2px; }
+.pt-photos button.sel { outline: 2.5px solid var(--blue); outline-offset: 2px; }
+.pt-crop { display: flex; gap: 14px; align-items: flex-start; margin: -2px 0 14px; padding: 10px; border-radius: 12px; background: var(--panel); }
+.pt-frame { flex: none; position: relative; overflow: hidden; border-radius: 4px; background: #ddd; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 0 0 1px rgba(21, 58, 85, .15); }
+.pt-frame.fixed { cursor: default; }
+.pt-frame:active { cursor: grabbing; }
+.pt-frame img { position: absolute; max-width: none; pointer-events: none; }
+.pt-frame.gray img { filter: grayscale(1); }
+.pt-ctl { flex: 1; min-width: 0; }
+.pt-ctl label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.pt-ctl .help { font-size: 12px; margin: 6px 0 8px; }
+.pt-act { display: flex; gap: 6px; flex-wrap: wrap; }
+.pt-act .btn { padding: 7px 11px; font-size: 13px; }
 .pt-texts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pt-texts .field:first-child:nth-last-child(odd) { grid-column: 1 / -1; }
 

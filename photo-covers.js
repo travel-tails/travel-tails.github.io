@@ -128,13 +128,24 @@
       + `<g transform="translate(${r1(cx - ic / 2)} ${r1(cy - ic / 2)}) scale(${r1(ic / 24)})" fill="none" stroke="${ico}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m3 18 5.5-5.5 4 4 3-3L21 18"/></g>`
       + (m < 900 ? '' : `<text x="${r1(cx)}" y="${r1(cy + ic / 2 + fs * 1.5)}" text-anchor="middle" font-family="Raleway, Arial, sans-serif" font-weight="700" font-size="${r1(fs)}" fill="${lab}">Tvoja fotografija</text>`);
   }
+  /* Položaj fotografije u okviru: z = uvećanje (1 = taman popuni okvir), cx/cy = 0..1 koji deo viška se vidi (0.5 = sredina).
+     Koliko može da se pomera zavisi od slike i okvira: višak postoji samo po jednoj osi dok se slika ne uveća. */
+  const ZMAX = 4;
+  function fit(w, h, iw, ih, p) {
+    const z = Math.min(ZMAX, Math.max(1, (p && p.z) || 1));
+    const k = Math.max(w / iw, h / ih) * z, dw = iw * k, dh = ih * k;
+    const cx = p && p.cx != null ? p.cx : 0.5, cy = p && p.cy != null ? p.cy : 0.5;
+    return { dx: -(dw - w) * cx, dy: -(dh - h) * cy, dw, dh, ox: dw - w, oy: dh - h };
+  }
   /* o.pt = { txt: { k: tekst }, ph: [{ thumb }] } – izmene kupca; bez toga se vide podrazumevani tekst i prazna mesta */
   function svg(c, o = {}) {
     const pt = o.pt || {}, ph = pt.ph || [];
     let out = (c.gray ? '<defs><filter id="ttgray" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/></filter></defs>' : '') + `<rect width="${PW}" height="${PH}" fill="${c.bg}"/>`;
     c.p.forEach(([x, y, w, h], i) => {
       const p = ph[i];
-      out += p && p.thumb ? `<image href="${p.thumb}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice"${c.gray ? ' filter="url(#ttgray)"' : ''}/>` : holder(x, y, w, h, c.dark, c.hy);
+      if (!(p && p.thumb && p.w)) { out += holder(x, y, w, h, c.dark, c.hy); return; }
+      const f = fit(w, h, p.w, p.h, p);
+      out += `<svg x="${x}" y="${y}" width="${w}" height="${h}" overflow="hidden"><image href="${p.thumb}" x="${r1(f.dx)}" y="${r1(f.dy)}" width="${r1(f.dw)}" height="${r1(f.dh)}" preserveAspectRatio="none"${c.gray ? ' filter="url(#ttgray)"' : ''}/></svg>`;
     });
     (c.d || []).forEach(([x1, y1, x2, y2, sw, col]) => { out += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${sw}"/>`; });
     layout(c, pt.txt).forEach((p) => {
@@ -142,7 +153,7 @@
     });
     return `<svg class="cover-svg" viewBox="0 0 ${PW} ${PH}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(c.name)}">${out}</svg>`;
   }
-  /* Fajl za štampu: A4 300 dpi, fotografije kupca u punoj rezoluciji (isečene na sredini kao u pregledu). */
+  /* Fajl za štampu: A4 300 dpi, fotografije kupca u punoj rezoluciji (isečene i pomerene tačno kao u pregledu). */
   async function print(c, pt, decode) {
     const ops = layout(c, pt.txt);
     await Promise.all([...new Set(ops.map((p) => fontOf(p.t, 100)))].map((f) => document.fonts.load(f)));
@@ -157,8 +168,11 @@
       const [x, y, w, h] = c.p[i], p = (pt.ph || [])[i];
       if (!p) continue;
       const bmp = await decode(p);
-      const r = Math.max(w / bmp.width, h / bmp.height), sw = w / r, sh = h / r;
-      g.drawImage(bmp.src, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, x, y, w, h);
+      const f = fit(w, h, bmp.width, bmp.height, p);
+      g.save();
+      g.beginPath(); g.rect(x, y, w, h); g.clip();
+      g.drawImage(bmp.src, x + f.dx, y + f.dy, f.dw, f.dh);
+      g.restore();
       if (bmp.close) bmp.close();
       if (c.gray) {
         const im = g.getImageData(x, y, w, h), d = im.data;
@@ -186,5 +200,5 @@
   TT.COVERS.unshift(...LIST);
   const prev = TT.coverSVG;
   TT.coverSVG = (c, o) => (c && c.photo ? svg(c, o) : prev(c, o));
-  window.TTP = { svg, print, layout, LIST };
+  window.TTP = { svg, print, layout, fit, ZMAX, LIST };
 })();

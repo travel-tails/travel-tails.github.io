@@ -247,6 +247,7 @@ input.invalid { border-color: var(--err) !important; }
 
 .linen { background: var(--panel); }
 .stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 28px; overflow-y: auto; }
+.stage { justify-content: safe center; } /* kad je sadržaj viši od panela, vrh ostaje vidljiv */
 .mock { flex: none; position: relative; perspective: 1500px; padding: 8px 46px 26px; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
 .mock:active { cursor: grabbing; }
 .face { position: absolute; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }

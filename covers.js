@@ -608,7 +608,7 @@
     ctx.font = `800 100px ${FAMILY}`;
     const size = f(Math.min(24, (100 * room) / (ctx.measureText(text).width || 1)));
     const y = f(size * 0.35);
-    return `<svg class="cover-svg" viewBox="0 0 46 594" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rikna"><rect width="46" height="594" fill="${o.bg}"/><g transform="translate(23 594) rotate(-90)"><text x="${year ? 332 : 297}" y="${y}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="800" font-size="${size}" fill="${o.ink}">${esc(text)}</text>${year ? `<text x="28" y="${f(13 * 0.35)}" text-anchor="start" font-family="${esc(FAMILY)}" font-weight="800" font-size="13" fill="${o.ink}" opacity=".85" style="font-variant-numeric:lining-nums">${year}</text>` : ''}</g></svg>`;
+    return `<svg class="cover-svg" viewBox="0 0 46 594" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bočna strana"><rect width="46" height="594" fill="${o.bg}"/><g transform="translate(23 594) rotate(-90)"><text x="${year ? 332 : 297}" y="${y}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="800" font-size="${size}" fill="${o.ink}">${esc(text)}</text>${year ? `<text x="28" y="${f(13 * 0.35)}" text-anchor="start" font-family="${esc(FAMILY)}" font-weight="800" font-size="13" fill="${o.ink}" opacity=".85" style="font-variant-numeric:lining-nums">${year}</text>` : ''}</g></svg>`;
   }
 
   /* Korice iz Figme (covers-data.js) + raniji crtani dizajni koji ostaju u ponudi */

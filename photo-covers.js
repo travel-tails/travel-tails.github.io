@@ -85,6 +85,15 @@
       ],
     },
     {
+      // isti dizajn, fotografija u boji i naslov pri vrhu (vrh slova na istoj visini kao kod ostalih korica)
+      id: 'phwedding2', m: ['a'], name: 'Wedding u boji', title: 'WEDDING', cat: ['venc'], bg: '#d6d6d6', bf: 'rozha', ink: '#ffffff', accent: '#ffffff', dark: true,
+      aka: 'vencanje wedding svadba vencanje album boja slika fotografija',
+      p: [[0, 0, 2480, 3508]],
+      t: [
+        { k: 'a', label: 'Naslov', s: 'WEDDING', f: 'rozha', z: 550, ls: -27.5, x: 1240, y: 528, a: 'middle', c: '#ffffff', w: 2240 },
+      ],
+    },
+    {
       id: 'pharhiva', m: ['a'], name: 'Arhiva ljubavi', title: 'Arhiva ljubavi', cat: ['ljub'], bf: 'serif', bg: '#ffffff', ink: '#111111', accent: '#111111',
       aka: 'arhiva ljubavi ljubav love par 365 dana slika fotografija',
       p: [[222, 859, 2031, 1254]],

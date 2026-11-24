@@ -19,7 +19,7 @@
      p: mesta za fotografije [x, y, w, h]; d: linije [x1, y1, x2, y2, debljina, boja] */
   const LIST = [
     {
-      id: 'phbday', name: 'Birthday book', title: 'BIRTHDAY book', cat: ['rodj'], bg: '#3a3633', ink: '#ffffff', accent: '#ffffff', dark: true,
+      id: 'phbday', m: ['a', 'b'], name: 'Birthday book', title: 'BIRTHDAY book', cat: ['rodj'], bg: '#d8d0c6', bf: 'serif', ink: '#ffffff', accent: '#ffffff', dark: true,
       aka: 'rodjendan birthday book 18 punoletstvo edition slika fotografija',
       p: [[0, 0, 2480, 3508]],
       t: [
@@ -32,7 +32,7 @@
       ],
     },
     {
-      id: 'ph18', name: '18. rođendan', title: '18 BIRTHDAY', cat: ['rodj'], bg: '#ff7ea3', ink: '#ffffff', accent: '#ffffff',
+      id: 'ph18', m: ['a', 'b'], j: '', name: '18. rođendan', title: '18 BIRTHDAY', cat: ['rodj'], bf: 'serif', bg: '#ff7ea3', ink: '#ffffff', accent: '#ffffff',
       aka: 'rodjendan birthday 18 punoletstvo memories slika fotografija',
       p: [[167, 1331, 2145, 1418]],
       t: [
@@ -42,17 +42,17 @@
       ],
     },
     {
-      id: 'phone', name: 'Prvi rođendan', title: 'one', cat: ['rodj', 'deca'], bg: '#fffddd', ink: '#111111', accent: '#111111', dark: true,
+      id: 'phone', m: ['a'], name: 'Prvi rođendan', title: 'one', cat: ['rodj', 'deca'], bf: 'play', bg: '#fffddd', ink: '#111111', accent: '#111111', dark: true,
       aka: 'prvi rodjendan first birthday one beba deca book of memories slika fotografija',
       p: [[366, 384, 1747, 2202]],
       t: [
-        { k: 'a', label: 'Tekst na slici', s: 'one', f: 'coop', z: 800, ls: 56, x: 1240, y: 2511, a: 'middle', c: '#ffffff', w: 1700 },
+        { k: 'a', on: 'p', label: 'Tekst na slici', s: 'one', f: 'coop', z: 800, ls: 56, x: 1240, y: 2511, a: 'middle', c: '#ffffff', w: 1700 },
         { k: 'b', label: 'Tekst ispod', s: 'A Book of Memories', f: 'play', z: 193, ls: 0, x: 1240, y: 3067, a: 'middle', c: '#000000', w: 2160 },
         { k: 'c', label: 'Datum', s: '22.09.2025.', f: 'play', z: 150, ls: 0, x: 1240, y: 3190, a: 'middle', c: '#000000', w: 2160 },
       ],
     },
     {
-      id: 'phmeyou', name: 'Me & You', title: 'ME & YOU', cat: ['ljub'], bg: '#ffc4e2', ink: '#b40a0c', accent: '#b40a0c', gray: true,
+      id: 'phmeyou', m: ['a'], name: 'Me & You', title: 'ME & YOU', cat: ['ljub'], bf: 'rubik', bg: '#ffc4e2', ink: '#b40a0c', accent: '#b40a0c', gray: true,
       aka: 'me and you ljubav love par mi slika fotografija',
       p: [[276, 1086, 1933, 1313]],
       t: [
@@ -60,7 +60,7 @@
       ],
     },
     {
-      id: 'phfam9', name: 'Porodične uspomene', title: '2026 family memories', cat: ['porod', 'usp'], bg: '#ffffff', ink: '#111111', accent: '#111111',
+      id: 'phfam9', m: ['a', 'b'], name: 'Porodične uspomene', title: '2026 family memories', cat: ['porod', 'usp'], bf: 'play', bg: '#ffffff', ink: '#111111', accent: '#111111',
       aka: 'porodica family memories uspomene godina 2026 kolaz slike fotografije',
       p: [0, 1, 2].flatMap((r) => [0, 1, 2].map((k) => [199 + k * 716, [1020, 1736, 2437][r], 649, r ? 634 : 649])),
       t: [
@@ -69,7 +69,7 @@
       ],
     },
     {
-      id: 'phfambook', name: 'Family book', title: 'FAMILY BOOK', cat: ['porod'], bg: '#ffffff', ink: '#98aec3', accent: '#98aec3',
+      id: 'phfambook', m: ['a'], name: 'Family book', title: 'FAMILY BOOK', cat: ['porod'], bf: 'play', bg: '#ffffff', ink: '#98aec3', accent: '#98aec3',
       aka: 'porodica family book uspomene slika fotografija',
       p: [[209, 641, 2061, 1520]],
       t: [
@@ -77,7 +77,7 @@
       ],
     },
     {
-      id: 'phwedding', name: 'Wedding', title: 'WEDDING', cat: ['venc'], bg: '#1e1e1e', ink: '#ffffff', accent: '#ffffff', gray: true, dark: true, hy: 0.72,
+      id: 'phwedding', m: ['a'], name: 'Wedding', title: 'WEDDING', cat: ['venc'], bg: '#d6d6d6', bf: 'rozha', ink: '#ffffff', accent: '#ffffff', gray: true, dark: true, hy: 0.72,
       aka: 'vencanje wedding svadba vencanje album slika fotografija',
       p: [[0, 0, 2480, 3508]],
       t: [
@@ -85,7 +85,7 @@
       ],
     },
     {
-      id: 'pharhiva', name: 'Arhiva ljubavi', title: 'Arhiva ljubavi', cat: ['ljub'], bg: '#ffffff', ink: '#111111', accent: '#111111',
+      id: 'pharhiva', m: ['a'], name: 'Arhiva ljubavi', title: 'Arhiva ljubavi', cat: ['ljub'], bf: 'serif', bg: '#ffffff', ink: '#111111', accent: '#111111',
       aka: 'arhiva ljubavi ljubav love par 365 dana slika fotografija',
       p: [[222, 859, 2031, 1254]],
       t: [
@@ -97,6 +97,14 @@
     },
   ];
 
+  // boje: čitljivost teksta na izabranoj pozadini
+  const rgbOf = (hex) => { let h = String(hex || '#000').replace('#', ''); if (h.length === 3) h = h.replace(/./g, '$&$&'); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const lum = (hex) => { const [r, g, b] = rgbOf(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const bw = (bg) => (lum(bg) > 0.4 ? '#111111' : '#ffffff');
+  // boja teksta: na fotografiji uvek kao u dizajnu; na pozadini boja koju je kupac izabrao, ili dizajnirana ako se dobro vidi
+  const inkFor = (c, t, bg, ink) => (t.on === 'p' || isFull(c) ? t.c : ink || (contrast(t.c, bg) >= 1.7 ? t.c : bw(bg)));
+  const isFull = (c) => !!c && c.p.length === 1 && c.p[0][0] <= 0 && c.p[0][1] <= 0 && c.p[0][2] >= PW && c.p[0][3] >= PH;
   const esc = (s) => String(s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
   const r1 = (n) => Math.round(n * 10) / 10;
   const mctx = document.createElement('canvas').getContext('2d');
@@ -140,7 +148,8 @@
   /* o.pt = { txt: { k: tekst }, ph: [{ thumb }] } – izmene kupca; bez toga se vide podrazumevani tekst i prazna mesta */
   function svg(c, o = {}) {
     const pt = o.pt || {}, ph = pt.ph || [];
-    let out = (c.gray ? '<defs><filter id="ttgray" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/></filter></defs>' : '') + `<rect width="${PW}" height="${PH}" fill="${c.bg}"/>`;
+    const bg = o.bg || c.bg;
+    let out = (c.gray ? '<defs><filter id="ttgray" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/></filter></defs>' : '') + `<rect width="${PW}" height="${PH}" fill="${bg}"/>`;
     c.p.forEach(([x, y, w, h], i) => {
       const p = ph[i];
       if (!(p && p.thumb && p.w)) { out += holder(x, y, w, h, c.dark, c.hy); return; }
@@ -149,18 +158,19 @@
     });
     (c.d || []).forEach(([x1, y1, x2, y2, sw, col]) => { out += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${sw}"/>`; });
     layout(c, pt.txt).forEach((p) => {
-      out += `<text x="${r1(p.x)}" y="${r1(p.y)}" text-anchor="${p.t.a}" font-family="${esc(FONT[p.t.f])}" font-weight="${wtOf(p.t)}" font-size="${r1(p.z)}" letter-spacing="${r1((p.t.ls * p.z) / p.t.z)}" fill="${p.t.c}" style="white-space:pre">${esc(p.s)}</text>`;
+      out += `<text x="${r1(p.x)}" y="${r1(p.y)}" text-anchor="${p.t.a}" font-family="${esc(FONT[p.t.f])}" font-weight="${wtOf(p.t)}" font-size="${r1(p.z)}" letter-spacing="${r1((p.t.ls * p.z) / p.t.z)}" fill="${inkFor(c, p.t, bg, o.ink)}" style="white-space:pre">${esc(p.s)}</text>`;
     });
     return `<svg class="cover-svg" viewBox="0 0 ${PW} ${PH}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(c.name)}">${out}</svg>`;
   }
   /* Fajl za štampu: A4 300 dpi, fotografije kupca u punoj rezoluciji (isečene i pomerene tačno kao u pregledu). */
-  async function print(c, pt, decode) {
+  async function print(c, pt, decode, o = {}) {
+    const bg = o.bg || c.bg;
     const ops = layout(c, pt.txt);
     await Promise.all([...new Set(ops.map((p) => fontOf(p.t, 100)))].map((f) => document.fonts.load(f)));
     const cv = document.createElement('canvas');
     cv.width = PW; cv.height = PH;
     const g = cv.getContext('2d');
-    g.fillStyle = c.bg;
+    g.fillStyle = bg;
     g.fillRect(0, 0, PW, PH);
     g.imageSmoothingEnabled = true;
     g.imageSmoothingQuality = 'high';
@@ -186,7 +196,7 @@
       g.letterSpacing = `${(p.t.ls * p.z) / p.t.z}px`;
       g.textAlign = p.t.a === 'middle' ? 'center' : p.t.a === 'end' ? 'right' : 'left';
       g.textBaseline = 'alphabetic';
-      g.fillStyle = p.t.c;
+      g.fillStyle = inkFor(c, p.t, bg, o.ink);
       g.fillText(p.s, p.x, p.y);
     });
     g.letterSpacing = '0px';
@@ -200,5 +210,14 @@
   TT.COVERS.unshift(...LIST);
   const prev = TT.coverSVG;
   TT.coverSVG = (c, o) => (c && c.photo ? svg(c, o) : prev(c, o));
-  window.TTP = { svg, print, layout, fit, ZMAX, LIST };
+  const GF = { serif: 'Tinos', play: 'Playfair+Display', rubik: 'Rubik+One', rozha: 'Rozha+One' };
+  const backFont = (c) => ({ ff: FONT[c.bf || c.t[0].f], fw: 400, gf: GF[c.bf || c.t[0].f] || '' });
+  // boja zadnje korice i bočne strane: izbor kupca, ili boja iz njegove fotografije (kad je slika preko cele korice), ili boja dizajna
+  function colors(c, pt, bgSel, inkSel) {
+    const auto = isFull(c) && pt && pt.ph && pt.ph[0] && pt.ph[0].avg;
+    const bg = bgSel || auto || c.bg;
+    const ink = inkSel || (contrast(c.ink, bg) >= 2.2 ? c.ink : bw(bg));
+    return { bg, ink, accent: ink, auto: auto || null };
+  }
+  window.TTP = { svg, print, layout, fit, ZMAX, LIST, isFull, backFont, colors };
 })();

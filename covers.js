@@ -585,7 +585,10 @@
     const raw = o.title || ' ';
     const title = cfg.upper ? raw.toUpperCase() : raw;
     const text = !o.slots.length;
-    const size = f(Math.min(text ? cfg.max : 58, fitSize(title, cfg, 348)));
+    // korice sa fotografijom kupca: isti font kao na prednjoj korici (o.ff / o.fw)
+    const fam = o.ff || FAMILY, wt = o.fw || cfg.weight;
+    ctx.font = `${wt} 100px ${fam}`;
+    const size = f(Math.min(text ? cfg.max : 58, cfg.max, (100 * 348) / (ctx.measureText(title).width || 1)));
     const base = f(text ? 310 : 532);
     let out = `<rect width="420" height="594" fill="${o.bg}"/>`;
     o.slots.forEach((s) => {
@@ -593,8 +596,8 @@
         ? `<image href="${s.href}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" preserveAspectRatio="xMidYMid slice"/>`
         : `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="3" fill="#fff" opacity=".4"/>`;
     });
-    out += `<text x="210" y="${base}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="${cfg.weight}" font-size="${size}" fill="${o.ink}" letter-spacing="-.5">${esc(title)}</text>`;
-    if (o.sub) out += `<text x="210" y="${f(base + 27)}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="${cfg.weight}" font-size="20" fill="${o.accent}">${esc(cfg.upper ? o.sub.toUpperCase() : o.sub)}</text>`;
+    out += `<text x="210" y="${base}" text-anchor="middle" font-family="${esc(fam)}" font-weight="${wt}" font-size="${size}" fill="${o.ink}" letter-spacing="-.5">${esc(title)}</text>`;
+    if (o.sub) out += `<text x="210" y="${f(base + 27)}" text-anchor="middle" font-family="${esc(fam)}" font-weight="${wt}" font-size="20" fill="${o.accent}">${esc(cfg.upper ? o.sub.toUpperCase() : o.sub)}</text>`;
     return `<svg class="cover-svg" viewBox="0 0 420 594" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zadnja korica">${out}</svg>`;
   }
 
@@ -605,10 +608,11 @@
     const text = cfg.upper ? raw.toUpperCase() : raw;
     const year = o.year ? esc(o.year) : '';
     const room = year ? 440 : 520;
-    ctx.font = `800 100px ${FAMILY}`;
+    const fam = o.ff || FAMILY, wt = o.fw || 800;
+    ctx.font = `${wt} 100px ${fam}`;
     const size = f(Math.min(24, (100 * room) / (ctx.measureText(text).width || 1)));
     const y = f(size * 0.35);
-    return `<svg class="cover-svg" viewBox="0 0 46 594" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bočna strana"><rect width="46" height="594" fill="${o.bg}"/><g transform="translate(23 594) rotate(-90)"><text x="${year ? 332 : 297}" y="${y}" text-anchor="middle" font-family="${esc(FAMILY)}" font-weight="800" font-size="${size}" fill="${o.ink}">${esc(text)}</text>${year ? `<text x="28" y="${f(13 * 0.35)}" text-anchor="start" font-family="${esc(FAMILY)}" font-weight="800" font-size="13" fill="${o.ink}" opacity=".85" style="font-variant-numeric:lining-nums">${year}</text>` : ''}</g></svg>`;
+    return `<svg class="cover-svg" viewBox="0 0 46 594" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bočna strana"><rect width="46" height="594" fill="${o.bg}"/><g transform="translate(23 594) rotate(-90)"><text x="${year ? 332 : 297}" y="${y}" text-anchor="middle" font-family="${esc(fam)}" font-weight="${wt}" font-size="${size}" fill="${o.ink}">${esc(text)}</text>${year ? `<text x="28" y="${f(13 * 0.35)}" text-anchor="start" font-family="${esc(FAMILY)}" font-weight="800" font-size="13" fill="${o.ink}" opacity=".85" style="font-variant-numeric:lining-nums">${year}</text>` : ''}</g></svg>`;
   }
 
   /* Korice iz Figme (covers-data.js) + raniji crtani dizajni koji ostaju u ponudi */

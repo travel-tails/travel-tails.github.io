@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261123d';
+  const APP_VER = '20261124a';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -45,17 +45,27 @@
   const totalBooks = () => Math.max(state.wanted || 1, state.books.length);
   const pagesBad = (b) => !goodCount(b.photos.filter((p) => p.status === 'ready').length);
   const cover = (b) => (b.coverId ? coverById(b.coverId) : null);
-  const coverOf = (b) => coverSVG(cover(b) || CUSTOM, { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent, pt: b.pt });
+  const coverOf = (b) => coverSVG(cover(b) || CUSTOM, Object.assign({ title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent, pt: b.pt }, ptFront(b)));
+  /* Boje i font za korice sa fotografijom kupca: pozadina po izboru (ili iz fotografije), zadnja korica i bočna strana istim fontom kao prednja */
+  const colorsOf = (b) => {
+    const c = cover(b) || CUSTOM;
+    if (!c.photo) return { bg: b.bg || c.bg, ink: b.ink || c.ink, accent: b.accent || c.accent };
+    return TTP.colors(c, b.pt, b.bg, b.inkSet ? b.ink : null);
+  };
+  const fontOf = (b) => { const c = cover(b); return c && c.photo ? TTP.backFont(c) : {}; };
+  const ptFront = (b) => { const c = cover(b); if (!c || !c.photo) return {}; const k = colorsOf(b); return { bg: TTP.isFull(c) ? k.bg : b.bg || c.bg, ink: b.inkSet ? b.ink : null }; };
   /* Korice sa fotografijom kupca: tekstovi (b.pt.txt) i fotografije za svako mesto (b.pt.ph) */
   const ptVal = (c, b, t) => (b.pt && b.pt.txt[t.k] != null ? b.pt.txt[t.k] : t.s);
-  const ptTitle = (c, b) => c.t.map((t) => ptVal(c, b, t).trim()).filter(Boolean).join(' ');
+  // natpis za zadnju koricu i bočnu stranu: samo glavni tekst dizajna (c.m), ne svi tekstovi sa prednje korice
+  const ptTitle = (c, b) => c.t.filter((t) => !c.m || c.m.includes(t.k)).map((t) => ptVal(c, b, t).trim()).filter(Boolean).join(c.j != null ? c.j : ' ');
   const ptMissing = (b) => { const c = cover(b); return c && c.photo ? c.p.filter((_, i) => !(b.pt && b.pt.ph[i])).length : 0; };
 
   /* Rikna */
   const spineText = (b) => (b.spine !== null ? b.spine : [b.title || b.dest, b.sub].filter(Boolean).join(' '));
   function spineOf(b) {
     const c = cover(b) || CUSTOM;
-    return spineSVG(c, { bg: b.bg || c.bg, ink: b.ink || c.ink, text: spineText(b), year: '' });
+    const k = colorsOf(b), ft = fontOf(b);
+    return spineSVG(c, { bg: k.bg, ink: k.ink, text: spineText(b), year: '', ff: ft.ff, fw: ft.fw });
   }
 
   /* Zadnja korica */
@@ -89,8 +99,8 @@
       const p = backPhoto(b, i);
       return { x, y, w, h, href: p ? p.thumb : '' };
     });
-    const blank = b.back.layout === 'none';
-    return backSVG(c, { bg: b.bg || c.bg, ink: b.ink || c.ink, accent: b.accent || c.accent, title: blank ? '' : backTitle(b), sub: blank ? '' : backSub(b), slots });
+    const blank = b.back.layout === 'none', k = colorsOf(b), ft = fontOf(b);
+    return backSVG(c, { bg: k.bg, ink: k.ink, accent: k.accent, title: blank ? '' : backTitle(b), sub: blank ? '' : backSub(b), slots, ff: ft.ff, fw: ft.fw });
   }
 
   /* ---------- zapamti tekstualna polja ---------- */
@@ -696,7 +706,8 @@
     $('#cSub').closest('.field').hidden = !!roles && !roles.has('s') && !(roles.has('t') && !((cv.adj || {}).s || {}).hide);
     $('#cYearField').hidden = roles ? !roles.has('y') : !!cv.subBottom;
     $('#cYearField').style.display = '';
-    $('#swatches').closest('.field').hidden = !!(cv.fig && (cv.fig.lock || cv.fig.fx)) || !!cv.photo;
+    $('#swatches').closest('.field').hidden = !!(cv.fig && (cv.fig.lock || cv.fig.fx));
+    $('#swatches').closest('.field').querySelector('.lbl').textContent = cv.photo && TTP.isFull(cv) ? 'Boja zadnje korice i bočne strane' : 'Boja korica';
     $('#ptBox').hidden = !cv.photo;
     $('#tunerMain .grid3').hidden = !!cv.photo;
     if (cv.photo) renderPt();
@@ -806,6 +817,7 @@
       const sc = Math.min(1, 900 / Math.max(p.w, p.h));
       const cv = makeCanvas(Math.round(p.w * sc), Math.round(p.h * sc));
       cv.getContext('2d').drawImage(bmp.src, 0, 0, cv.width, cv.height);
+      p.avg = photoColor(bmp.src, !!c.gray);
       if (bmp.close) bmp.close();
       p.url = URL.createObjectURL(blob);
       p.thumb = URL.createObjectURL(await canvasBlob(cv, 0.85));
@@ -814,8 +826,30 @@
       if (b.pt && b.pt.ph[i] === p) b.pt.ph[i] = null;
       toast('Ovu fotografiju ne možemo da otvorimo. Probaj drugu.');
     }
-    if (book() === b) { renderPt(); renderMock(); }
+    if (book() === b) { renderPt(); renderMock(); renderSwatches(); }
   });
+  // preovlađujuća boja fotografije (bez skoro crnih i skoro belih tačaka); za crno-bele dizajne siva
+  function photoColor(src, gray) {
+    try {
+      const N = 48, cv = document.createElement('canvas');
+      cv.width = cv.height = N;
+      const x = cv.getContext('2d', { willReadFrequently: true });
+      x.drawImage(src, 0, 0, N, N);
+      const d = x.getImageData(0, 0, N, N).data, m = new Map();
+      let all = [0, 0, 0, 0];
+      for (let i = 0; i < d.length; i += 4) {
+        let r = d[i], g = d[i + 1], bl = d[i + 2];
+        if (gray) r = g = bl = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * bl);
+        all = [all[0] + r, all[1] + g, all[2] + bl, all[3] + 1];
+        const l = (0.2126 * r + 0.7152 * g + 0.0722 * bl) / 255;
+        if (l < 0.07 || l > 0.96) continue;
+        const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (bl >> 5), e = m.get(key) || [0, 0, 0, 0];
+        m.set(key, [e[0] + r, e[1] + g, e[2] + bl, e[3] + 1]);
+      }
+      const best = [...m.values()].sort((a, z) => z[3] - a[3])[0] || all;
+      return toHex([0, 1, 2].map((k) => Math.round(best[k] / best[3])));
+    } catch (e) { return null; }
+  }
   $('#ptTexts').addEventListener('input', (e) => {
     const k = e.target.dataset.ptk, b = book(), c = cover(b);
     if (!k || !c || !c.photo) return;
@@ -826,8 +860,10 @@
     renderBookTabs();
   });
   function renderSwatches() {
-    const b = book();
-    $('#swatches').innerHTML = SWATCHES.map((s, i) => `<button type="button" data-sw="${i}" class="${i === 0 ? 'orig' : ''} ${b.swatch === i ? 'on' : ''}" ${s ? `style="background:${s[0]}"` : ''} aria-label="${i === 0 ? 'Originalna boja' : 'Boja ' + i}"></button>`).join('') +
+    const b = book(), c = cover(b);
+    // slika preko cele korice: prvi krug je boja prepoznata iz fotografije kupca
+    const auto = c && c.photo ? TTP.colors(c, b.pt).auto : null;
+    $('#swatches').innerHTML = SWATCHES.map((s, i) => `<button type="button" data-sw="${i}" class="${i === 0 && !auto ? 'orig' : ''} ${b.swatch === i ? 'on' : ''}" ${s ? `style="background:${s[0]}"` : i === 0 && auto ? `style="background:${auto}"` : ''} aria-label="${i === 0 ? (auto ? 'Boja iz tvoje fotografije' : 'Originalna boja') : 'Boja ' + i}"></button>`).join('') +
       (b.swatch === -1 ? `<button type="button" data-sw="-1" class="on" style="background:${b.bg}" aria-label="Tvoja boja"></button>` : '');
   }
   $('#coverKind').addEventListener('click', (e) => {
@@ -2302,10 +2338,11 @@
     out.set(src.subarray(0, at)); out.set(chunk, at); out.set(src.subarray(at), at + 21);
     return new Blob([out], { type: 'image/png' });
   }
-  let fontCss = null;
-  async function embedFonts() {
-    if (fontCss) return fontCss;
-    let css = await (await fetch('https://fonts.googleapis.com/css2?family=Raleway:wght@700;800;900&display=swap')).text();
+  const fontCss = new Map();
+  async function embedFonts(extra) {
+    const key = extra || '';
+    if (fontCss.has(key)) return fontCss.get(key);
+    let css = await (await fetch('https://fonts.googleapis.com/css2?family=Raleway:wght@700;800;900' + (extra ? '&family=' + extra : '') + '&display=swap')).text();
     const urls = [...new Set(css.match(/https:[^)]+/g) || [])];
     for (const u of urls) {
       const buf = new Uint8Array(await (await fetch(u)).arrayBuffer());
@@ -2313,11 +2350,12 @@
       for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
       css = css.split(u).join('data:font/woff2;base64,' + btoa(bin));
     }
-    return (fontCss = css);
+    fontCss.set(key, css);
+    return css;
   }
   // SVG (stari dizajni, zadnja korica) -> canvas, sa ugrađenim fontom
-  async function svgCanvas(svg, W, H) {
-    const css = await embedFonts();
+  async function svgCanvas(svg, W, H, extra) {
+    const css = await embedFonts(extra);
     const s = svg.replace(/<svg([^>]*)>/, `<svg$1 width="${W}" height="${H}"><defs><style>${css}</style></defs>`);
     const url = URL.createObjectURL(new Blob([s], { type: 'image/svg+xml' }));
     const img = await TTF.loadImg(url);
@@ -2348,7 +2386,7 @@
   }
   async function frontPrint(b) {
     const c = cover(b) || CUSTOM;
-    if (c.photo) return TTP.print(c, b.pt || { txt: {}, ph: [] }, async (p) => decodeImage(await (await fetch(p.url)).blob()));
+    if (c.photo) return TTP.print(c, b.pt || { txt: {}, ph: [] }, async (p) => decodeImage(await (await fetch(p.url)).blob()), ptFront(b));
     const o = { title: b.title || (b.coverId ? undefined : b.dest), sub: b.sub, year: b.year, bg: b.bg, ink: b.ink, accent: b.accent };
     return c.fig ? TTF.printCanvas(c, o) : svgCanvas(coverSVG(c, o), TTF.PW, TTF.PH);
   }
@@ -2358,37 +2396,38 @@
       const p = backPhoto(b, i);
       return { x, y, w, h, href: p ? await photoData(p, w * k, h * k) : '' };
     }));
-    const blank = b.back.layout === 'none';
-    const svg = backSVG(c, { bg: b.bg || c.bg, ink: b.ink || c.ink, accent: b.accent || c.accent, title: blank ? '' : backTitle(b), sub: blank ? '' : backSub(b), slots });
-    return svgCanvas(svg, TTF.PW, TTF.PH);
+    const blank = b.back.layout === 'none', col = colorsOf(b), ft = fontOf(b);
+    const svg = backSVG(c, { bg: col.bg, ink: col.ink, accent: col.accent, title: blank ? '' : backTitle(b), sub: blank ? '' : backSub(b), slots, ff: ft.ff, fw: ft.fw });
+    return svgCanvas(svg, TTF.PW, TTF.PH, ft.gf);
   }
   async function spinePrint(b) {
     const c = cover(b) || CUSTOM, n = countOf(b);
-    const W = Math.round(spineMM(n) * PX_MM), H = TTF.PH, k = H / 594;
-    await document.fonts.load('800 100px Raleway');
+    const W = Math.round(spineMM(n) * PX_MM), H = TTF.PH, sk = H / 594;
+    const k = colorsOf(b), ft = fontOf(b), FF = ft.ff || 'Raleway', FW = ft.fw || 800;
+    await document.fonts.load(`${FW} 100px ${FF}`);
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
-    g.fillStyle = b.bg || c.bg;
+    g.fillStyle = k.bg;
     g.fillRect(0, 0, W, H);
     const raw = spineText(b), text = c.font === 'soft' ? raw : raw.toLocaleUpperCase('sr');
     const year = '';
     g.save();
     g.translate(W / 2, H);
     g.rotate(-Math.PI / 2);
-    g.fillStyle = b.ink || c.ink;
+    g.fillStyle = k.ink;
     g.textBaseline = 'middle';
-    let size = Math.min(W * 0.5, 24 * k);
-    g.font = `800 ${size}px Raleway`;
-    const room = (year ? 440 : 520) * k, w = g.measureText(text).width;
-    if (w > room) { size *= room / w; g.font = `800 ${size}px Raleway`; }
+    let size = Math.min(W * 0.5, 24 * sk);
+    g.font = `${FW} ${size}px ${FF}`;
+    const room = (year ? 440 : 520) * sk, w = g.measureText(text).width;
+    if (w > room) { size *= room / w; g.font = `${FW} ${size}px ${FF}`; }
     g.textAlign = 'center';
-    g.fillText(text, (year ? 332 : 297) * k, 0);
+    g.fillText(text, (year ? 332 : 297) * sk, 0);
     if (year) {
-      g.font = `800 ${Math.min(W * 0.32, 13 * k)}px Raleway`;
+      g.font = `${FW} ${Math.min(W * 0.32, 13 * sk)}px ${FF}`;
       g.textAlign = 'left';
       g.globalAlpha = 0.85;
-      g.fillText(year, 28 * k, 0);
+      g.fillText(year, 28 * sk, 0);
     }
     g.restore();
     return cv;
@@ -2408,7 +2447,7 @@
         `  Format: A4, tvrde korice, ${n} ${stranica(n)}, ${money(priceFor(n))}`,
         `  Dizajn: ${c.id === 'custom' ? 'osnovni dizajn, dogovor na Instagramu' : c.name}${c.fig ? ` (Figma okvir ${c.id.replace('f', '1112:')})` : ''}`,
         `  Naslov: ${b.title || ''}`, `  Podnaslov: ${b.sub || ''}`, `  Godina: ${b.year || ''}`, `  Rikna: ${spineText(b)}`,
-        `  Boje: korice ${b.bg || c.bg}, naslov ${b.ink || c.ink || 'original'}, podnaslov ${b.accent || c.accent || 'original'}`,
+        `  Boje: korice ${colorsOf(b).bg}, naslov ${colorsOf(b).ink || 'original'}, podnaslov ${colorsOf(b).accent || 'original'}`,
         `  Zadnja korica: ${{ none: 'prazna', text: 'samo tekst', one: '1 fotografija', four: '4 fotografije' }[b.back.layout]}`,
         `  Rikna u fajlu: 30 x 297 mm (300 dpi)`);
       if (c.photo && b.pt) {

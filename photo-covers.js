@@ -52,7 +52,7 @@
       ],
     },
     {
-      id: 'phmeyou', m: ['a'], name: 'Me & You', title: 'ME & YOU', cat: ['ljub'], bf: 'rubik', bg: '#ffc4e2', ink: '#b40a0c', accent: '#b40a0c', gray: true,
+      id: 'phmeyou', m: ['a'], name: 'Me & You', title: 'ME & YOU', cat: ['ljub'], bf: 'rubik', bg: '#ffc4e2', ink: '#b40a0c', accent: '#b40a0c',
       aka: 'me and you ljubav love par mi slika fotografija',
       p: [[276, 1086, 1933, 1313]],
       t: [

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261124d';
+  const APP_VER = '20261124e';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -298,7 +298,7 @@
     COVERS.forEach((c) => {
       const k = norm(c.name), hit = m.get(k), aka = norm(c.aka + ' ' + c.title);
       if (hit) { if (!hit.aka.includes(aka)) hit.aka += ' ' + aka; }
-      else m.set(k, { name: c.name, sub: c.other ? 'Tema' : c.country || 'Država', aka, icon: c.other ? THEME_ICON[c.id] || CAT_ICON[c.cat[0]] || 'heart' : c.country ? 'pin' : 'globe' });
+      else m.set(k, { name: c.name, sub: c.other || c.ski ? 'Tema' : c.country || 'Država', aka, icon: c.other ? THEME_ICON[c.id] || CAT_ICON[c.cat[0]] || 'heart' : c.country ? 'pin' : 'globe' });
     });
     // korica koja je prikazana i na drugom mestu: i to mesto je u predlozima
     COVERS.forEach((c) => (c.also || []).forEach((a) => {
@@ -471,13 +471,13 @@
   const CONTINENTS = [['evropa', 'Evropa'], ['azija', 'Azija'], ['afrika', 'Afrika'], ['amerika', 'Amerika'], ['australija', 'Australija']];
   const contOf = (c) => (!c.cont || c.cont === 'balkan' ? 'evropa' : c.cont);
   const CHIPS = {
-    travel: [['pop', 'Najpopularnije'], ...CONTINENTS],
+    travel: [['pop', 'Najpopularnije'], ['ski', 'Ski trip'], ...CONTINENTS],
     other: [['sve', 'Sve'], ['rodj', 'Rođendani'], ['krst', 'Krštenja'], ['deca', 'Bebe i deca'], ['venc', 'Venčanja'], ['ljub', 'Ljubav'], ['drug', 'Drugarice'], ['porod', 'Porodica'], ['usp', 'Uspomene']],
   };
     ((TT.ADDED || {}).themes || []).forEach((t) => { if (!CHIPS.other.some((x) => x[0] === t.k)) CHIPS.other.push([t.k, t.t]); });
   const allChip = () => (state.kind === 'other' ? 'sve' : 'pop');
   const startChip = allChip;
-  const inChip = (c, k) => !!c.other === (state.kind === 'other') && (k === 'sve' || (k === 'pop' ? c.featIdx >= 0 : c.other ? c.cat.includes(k) : contOf(c) === k));
+  const inChip = (c, k) => !!c.other === (state.kind === 'other') && (k === 'sve' || (k === 'pop' ? c.featIdx >= 0 : k === 'ski' ? !!c.ski : c.other ? c.cat.includes(k) : !c.ski && contOf(c) === k));
   const NAVY = '#153a55';
   const SWATCHES = [null, ['#65c8f6', NAVY, NAVY], ['#f6e27a', '#1f2a6b', '#c1246d'], ['#f4b3c4', '#ffffff', '#bb1f3a'], ['#a9d8c6', '#1a2e7c', '#1a2e7c'], ['#14763a', '#ececea', '#e9bd3d'], ['#1f2a6b', '#ffffff', '#f6e27a'], ['#f6f2ea', NAVY, '#a48745']];
 
@@ -537,7 +537,7 @@
   }
   // dopuna: samo neutralni dizajni (bez znamenitosti), nasumičan izbor koji se može dopunjavati ("Učitaj još")
   const FB_IDS = {
-    w: ['n313117', 'n313840', 'n1103', 'n313120', 'n309192', 'n313029', 'n312860', 'n308990'],
+    w: ['n1103', 'n313120', 'n309192', 'n313029', 'n312860', 'n308990'],
     n: ['n313132', 'n313124', 'n248621', 'n286614', 'n287755', 'n219797', 'n219874', 'n286611'],
   };
   // vrsta mesta: w = zimsko, s = more/letovanje, n = malo mesto i priroda (kućica, šuma, brdo)
@@ -554,7 +554,7 @@
   // (3) korice tog dela sveta, (4) korice drugih država iz tog dela sveta; uvek sa upisanim nazivom.
   function fallbackPool(q) {
     const n = norm(q), p = PLACE_BY.get(n), kind = placeKind(q), W = window.TT_WORLD;
-    const ok = (c) => c.fig && c.fig.T.some((t) => t.r === 't') && !c.other;
+    const ok = (c) => c.fig && c.fig.T.some((t) => t.r === 't') && !c.other && !c.ski;
     const live = COVERS.filter(ok), byId = new Map(COVERS.map((c) => [c.id, c]));
     const country = p ? (p.sub === 'Država' ? p.name : p.sub !== 'Tema' && p.sub !== 'Deo sveta' ? p.sub : '') : '';
     const ci = W && country ? W.c.indexOf(country) : -1;
@@ -618,7 +618,9 @@
       const same = (c) => norm(c.name) === n || norm(c.title) === n || alsoN(c);
       const exact = list.filter((c) => same(c) || whole(c))
         .sort((a, b) => (same(a) ? 0 : 1) - (same(b) ? 0 : 1));
-      const main = exact.length && !list.some((c) => c.other) ? exact : list;
+      // "Ski trip" / skijanje: samo korice iz tog dela
+      const skiQ = exact.filter((c) => c.ski);
+      const main = skiQ.length ? skiQ : exact.length && !list.some((c) => c.other) ? exact : list;
       const top = main.filter((c) => c.top), rest = main.filter((c) => !c.top);
       html += top.map((c) => card(c)).join('');
       const cf = countryFill(q);

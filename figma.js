@@ -159,22 +159,29 @@
     const addSub = String(o.sub == null ? '' : o.sub).trim();
     if (!subs.length && titles.length && addSub && tBase != null && !hidden(c, 's')) {
       const t0 = titles[0], a = adjOf(c, 's');
-      const z0 = Math.max(130, Math.min(250, t0.z * 0.28)) * a.s;
       const caps = !!t0.up || isCaps(titles.map((t) => t.s).join(''));
-      const pt = { r: 's', s: addSub, x: 0, y: 0, w: PW, h: z0, wt: t0.wt || 800, z: z0, ls: -0.03 * z0, lh: 0, c: o.accent || (year && year.c) || o.ink || t0.c, a: 'R', up: caps ? 1 : 0 };
-      if (t0.f) pt.f = t0.f;
       const txt = caps ? addSub.toLocaleUpperCase('sr') : addSub;
       const yo = ops.find((p) => p.t.r === 'y');
-      let right, base;
+      // veličina kao na dizajnima iz Figme: godina i kratka reč 250, duža reč 200 (predugačka se smanji da stane)
+      const z0 = (yo ? yo.z : txt.replace(/\s/g, '').length <= 6 ? 250 : 200) * a.s;
+      const pt = { r: 's', s: addSub, x: 0, y: 0, w: PW, h: z0, wt: t0.wt || 800, z: z0, ls: -0.03 * z0, lh: 0, c: o.accent || (year && year.c) || o.ink || t0.c, a: 'R', up: caps ? 1 : 0 };
+      if (t0.f) pt.f = t0.f;
+      let right;
       if (yo) {
         const yw = width(yo.t, yo.s, yo.z);
         const yl = yo.anchor === 'end' ? yo.x - yw : yo.anchor === 'middle' ? yo.x - yw / 2 : yo.x;
-        right = yl - z0 * 0.35; base = yo.y;
-      } else { right = tRight + dRight; base = tBase + z0 * 1.3; }
+        right = yl - z0 * 0.35;
+      } else {
+        // poravnato sa desnom ivicom naslova kako je stvarno nacrtan
+        right = Math.max(...ops.filter((p) => p.t.r === 't').map((p) => { const w = width(p.t, p.s, p.z); return p.anchor === 'end' ? p.x : p.anchor === 'middle' ? p.x + w / 2 : p.x + w; }));
+        if (!isFinite(right)) right = tRight + dRight;
+      }
       right = Math.min(right, PW - STD.side);
       let z = z0, w = width(pt, txt, z);
       const room = right - STD.side;
       if (w > room) z = (z * room) / w;
+      // ispod naslova: vrh slova podnaslova ~50 px ispod osnovne linije naslova (kao na većini dizajna); pored godine u istom redu
+      const base = yo ? yo.y : tBase + 50 + CAP * z;
       add(pt, txt, right + a.x, base + a.y, z, 'end', pt.c);
     }
     return ops;

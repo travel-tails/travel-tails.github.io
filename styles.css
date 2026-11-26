@@ -311,7 +311,8 @@ input.invalid { border-color: var(--err) !important; }
 .pt-frame.gray img { filter: grayscale(1); }
 .pt-ctl { flex: 1; min-width: 0; }
 .pt-ctl label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
-.pt-ctl .help { font-size: 12px; margin: 6px 0 8px; }
+.pt-ctl .help { font-size: 12px; margin: 0 0 8px; }
+#ptZoomRow { margin-bottom: 8px; }
 .pt-act { display: flex; gap: 6px; flex-wrap: wrap; }
 .pt-act .btn { padding: 7px 11px; font-size: 13px; }
 .pt-texts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

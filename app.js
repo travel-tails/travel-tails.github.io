@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261126b';
+  const APP_VER = '20261126c';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -742,7 +742,7 @@
   }
   /* Podešavanje slike u okviru: prevlačenje pomera sliku, klizač je uvećava.
      Koliko može da se pomera zavisi od slike i okvira (višak slike van okvira). */
-  let ptSlot = 0;
+  let ptSlot = 0, ptOpen = false;
   const cropOf = () => { const b = book(), c = cover(b); const p = c && c.photo && b.pt && b.pt.ph[ptSlot]; return p && p.thumb && p.w ? { b, c, p, s: c.p[ptSlot] } : null; };
   function renderCrop() {
     const k = cropOf();
@@ -759,7 +759,13 @@
     if (document.activeElement !== zIn) zIn.value = Math.round((k.p.z || 1) * 100);
     const mx = f.ox > 1, my = f.oy > 1;
     fr.classList.toggle('fixed', !mx && !my);
-    $('#ptHint').textContent = mx && my ? 'Prevuci sliku u bilo kom pravcu.' : my ? 'Prevuci sliku gore-dole. Uvećaj je za pomeranje levo-desno.' : mx ? 'Prevuci sliku levo-desno. Uvećaj je za pomeranje gore-dole.' : 'Slika taman staje u okvir. Uvećaj je da bi mogla da je pomeraš.';
+    // pomeranje je uvek dostupno; veličina (klizač) i "Na sredinu" tek posle klika na "Podesi sliku"
+    $('#ptZoomRow').hidden = !ptOpen;
+    $('#ptCenter').hidden = !ptOpen;
+    $('#ptSize').textContent = ptOpen ? 'Gotovo' : 'Podesi sliku';
+    $('#ptSize').setAttribute('aria-expanded', ptOpen);
+    const more = ptOpen ? 'Pomeri klizač da je uvećaš' : 'Klikni „Podesi sliku“ da je uvećaš';
+    $('#ptHint').textContent = mx && my ? 'Prevuci sliku u bilo kom pravcu.' : my ? 'Prevuci sliku gore-dole.' : mx ? 'Prevuci sliku levo-desno.' : `Slika taman staje u okvir. ${more} i pomeraš.`;
   }
   let cropRaf = 0;
   const cropChanged = () => { renderCrop(); if (!cropRaf) cropRaf = requestAnimationFrame(() => { cropRaf = 0; renderMock(); }); };
@@ -794,6 +800,7 @@
   })();
   $('#ptZoom').addEventListener('input', (e) => { const k = cropOf(); if (!k) return; k.p.z = clamp(+e.target.value / 100, 1, TTP.ZMAX); cropChanged(); });
   $('#ptCenter').addEventListener('click', () => { const k = cropOf(); if (!k) return; k.p.cx = k.p.cy = 0.5; k.p.z = 1; cropChanged(); });
+  $('#ptSize').addEventListener('click', () => { ptOpen = !ptOpen; renderCrop(); });
   $('#ptChange').addEventListener('click', () => { $('#ptFile').value = ''; $('#ptFile').click(); });
   $('#ptPhotos').addEventListener('click', (e) => {
     const t = e.target.closest('[data-pt]');

@@ -2,7 +2,7 @@
    Tok: Informacije → Korice → Fotografije i uređivanje → Slanje */
 (function () {
   'use strict';
-  const APP_VER = '20261124e';
+  const APP_VER = '20261126a';
   // Meta Pixel: događaji po koracima (svaki se šalje najviše jednom po poseti)
   const trackedEv = new Set();
   const track = (ev, params) => { try { if (window.fbq && !trackedEv.has(ev)) { trackedEv.add(ev); fbq('track', ev, params || {}); } } catch (e) { /* ignore */ } };
@@ -289,7 +289,7 @@
     plane: '<path d="M3 13l18-8-6 16-3-7z"/><path d="M12 14l9-9"/>',
   };
   const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[k] || ICON_PATHS.pin}</svg>`;
-  const CAT_ICON = { rodj: 'cake', krst: 'cross', deca: 'baby', venc: 'rings', ljub: 'heart', drug: 'heart', porod: 'heart', usp: 'plane' };
+  const CAT_ICON = { rodj: 'cake', krst: 'cross', deca: 'baby', venc: 'rings', ljub: 'heart', drug: 'heart', porod: 'heart', usp: 'plane', yb: 'heart' };
   const THEME_ICON = { firstbday: 'cake', birthday: 'cake', birthday18: 'cake', baptism: 'cross', baby: 'baby', wedding: 'rings', honeymoon: 'heart', anniversary: 'calendar', love: 'heart', couple: 'plane' };
   const PLACES_RAW = 'Bar|Crna Gora;Budva|Crna Gora;Kotor|Crna Gora;Tivat|Crna Gora;Herceg Novi|Crna Gora;Ulcinj|Crna Gora;Petrovac|Crna Gora;Sveti Stefan|Crna Gora;Žabljak|Crna Gora;Beograd|Srbija;Novi Sad|Srbija;Niš|Srbija;Zlatibor|Srbija;Kopaonik|Srbija;Dubrovnik|Hrvatska;Split|Hrvatska;Zadar|Hrvatska;Hvar|Hrvatska;Rovinj|Hrvatska;Pula|Hrvatska;Trogir|Hrvatska;Zagreb|Hrvatska;Makarska|Hrvatska;Sarajevo|Bosna i Hercegovina;Mostar|Bosna i Hercegovina;Neum|Bosna i Hercegovina;Ljubljana|Slovenija;Bled|Slovenija;Skoplje|Severna Makedonija;Ohrid|Severna Makedonija;Tirana|Albanija;Saranda|Albanija;Ksamil|Albanija;Sofija|Bugarska;Varna|Bugarska;Sunčev Breg|Bugarska;Bukurešt|Rumunija;Budimpešta|Mađarska;Beč|Austrija;Salcburg|Austrija;Prag|Češka;Krakov|Poljska;Varšava|Poljska;Berlin|Nemačka;Minhen|Nemačka;Hamburg|Nemačka;Amsterdam|Holandija;Brisel|Belgija;Brige|Belgija;Pariz|Francuska;Nica|Francuska;Kan|Francuska;Lion|Francuska;Monako|Monako;London|Velika Britanija;Edinburg|Škotska;Dablin|Irska;Madrid|Španija;Barselona|Španija;Sevilja|Španija;Valensija|Španija;Malaga|Španija;Majorka|Španija;Ibica|Španija;Tenerife|Španija;Gran Kanarija|Španija;Lisabon|Portugal;Porto|Portugal;Madeira|Portugal;Azori|Portugal;Rim|Italija;Milano|Italija;Venecija|Italija;Firenca|Italija;Napulj|Italija;Bari|Italija;Amalfi|Italija;Kapri|Italija;Sardinija|Italija;Sicilija|Italija;Toskana|Italija;Elba|Italija;Verona|Italija;Cirih|Švajcarska;Ženeva|Švajcarska;Interlaken|Švajcarska;Oslo|Norveška;Stokholm|Švedska;Kopenhagen|Danska;Helsinki|Finska;Rejkjavik|Island;Atina|Grčka;Santorini|Grčka;Mikonos|Grčka;Krit|Grčka;Rodos|Grčka;Krf|Grčka;Zakintos|Grčka;Lefkada|Grčka;Kefalonija|Grčka;Tasos|Grčka;Skijatos|Grčka;Parga|Grčka;Halkidiki|Grčka;Sitonija|Grčka;Kasandra|Grčka;Solun|Grčka;Istanbul|Turska;Antalija|Turska;Alanja|Turska;Bodrum|Turska;Kapadokija|Turska;Marmaris|Turska;Kipar|Država;Malta|Država;Grčka|Država;Italija|Država;Španija|Država;Francuska|Država;Nemačka|Država;Austrija|Država;Švajcarska|Država;Portugal|Država;Hrvatska|Država;Crna Gora|Država;Turska|Država;Albanija|Država;Bugarska|Država;Srbija|Država;Egipat|Država;Maroko|Država;Tunis|Država;Japan|Država;Kina|Država;Tajland|Država;Vijetnam|Država;Indonezija|Država;Indija|Država;Šri Lanka|Država;Maldivi|Država;Mauricijus|Država;Sejšeli|Država;Kenija|Država;Bahami|Država;Kuba|Država;Dominikana|Država;Meksiko|Država;Peru|Država;Brazil|Država;Argentina|Država;Kanada|Država;Australija|Država;Novi Zeland|Država;Hurgada|Egipat;Šarm el Šeik|Egipat;Kairo|Egipat;Marakeš|Maroko;Kejp Taun|Južna Afrika;Zanzibar|Tanzanija;Dubai|UAE;Abu Dabi|UAE;Doha|Katar;Tokio|Japan;Kjoto|Japan;Seul|Južna Koreja;Singapur|Singapur;Hong Kong|Kina;Bangkok|Tajland;Puket|Tajland;Bali|Indonezija;Njujork|SAD;Los Anđeles|SAD;Las Vegas|SAD;Majami|SAD;San Francisko|SAD;Havaji|SAD;Kankun|Meksiko;Havana|Kuba;Rio de Žaneiro|Brazil;Buenos Ajres|Argentina;Sidnej|Australija;Melburn|Australija';
   const PLACES = (() => {
@@ -472,7 +472,7 @@
   const contOf = (c) => (!c.cont || c.cont === 'balkan' ? 'evropa' : c.cont);
   const CHIPS = {
     travel: [['pop', 'Najpopularnije'], ['ski', 'Ski trip'], ...CONTINENTS],
-    other: [['sve', 'Sve'], ['rodj', 'Rođendani'], ['krst', 'Krštenja'], ['deca', 'Bebe i deca'], ['venc', 'Venčanja'], ['ljub', 'Ljubav'], ['drug', 'Drugarice'], ['porod', 'Porodica'], ['usp', 'Uspomene']],
+    other: [['sve', 'Sve'], ['rodj', 'Rođendani'], ['krst', 'Krštenja'], ['deca', 'Bebe i deca'], ['venc', 'Venčanja'], ['ljub', 'Ljubav'], ['drug', 'Drugarice'], ['porod', 'Porodica'], ['usp', 'Uspomene'], ['yb', 'Year book']],
   };
     ((TT.ADDED || {}).themes || []).forEach((t) => { if (!CHIPS.other.some((x) => x[0] === t.k)) CHIPS.other.push([t.k, t.t]); });
   const allChip = () => (state.kind === 'other' ? 'sve' : 'pop');
@@ -510,7 +510,7 @@
       x.setAttribute('aria-selected', on);
     });
   }
-  const CAT_WORDS = { rodj: 'rođendan rođendani rodjendan birthday', krst: 'krštenje krstenje krštenja', deca: 'beba bebe deca dete baby', venc: 'venčanje vencanje svadba wedding medeni mesec', ljub: 'ljubav love par', drug: 'drugarice matura devojačko devojacko', porod: 'porodica family', usp: 'uspomene memories putovanja leto summer svet world skijanje ski' };
+  const CAT_WORDS = { rodj: 'rođendan rođendani rodjendan birthday', krst: 'krštenje krstenje krštenja', deca: 'beba bebe deca dete baby', venc: 'venčanje vencanje svadba wedding medeni mesec', ljub: 'ljubav love par', drug: 'drugarice matura devojačko devojacko', porod: 'porodica family', usp: 'uspomene memories putovanja leto summer svet world skijanje ski', yb: 'year book yearbook godisnjak godina' };
   function matchCovers(q) {
     const n = norm(q);
     const words = n.split(/\s+/).filter(Boolean);
@@ -735,7 +735,7 @@
     const box = $('#ptTexts');
     if (box.dataset.for !== c.id + '|' + b.id) {
       box.dataset.for = c.id + '|' + b.id;
-      box.innerHTML = c.t.map((t) => `<div class="field"><label for="pt_${t.k}">${esc(t.label)}</label><input id="pt_${t.k}" data-ptk="${t.k}" maxlength="40" autocomplete="off"></div>`).join('');
+      box.innerHTML = c.t.filter((t) => !t.fx).map((t) => `<div class="field"><label for="pt_${t.k}">${esc(t.label)}</label><input id="pt_${t.k}" data-ptk="${t.k}" maxlength="40" autocomplete="off"></div>`).join('');
     }
     c.t.forEach((t) => { const el = $('#pt_' + t.k); if (el && document.activeElement !== el) el.value = ptVal(c, b, t); });
     renderCrop();

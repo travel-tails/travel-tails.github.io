@@ -7,17 +7,39 @@
   if (!TT) return;
   const FONT = {
     serif: "Tinos, 'Times New Roman', Times, serif", play: "'Playfair Display', Georgia, serif", coop: "Fraunces, 'Cooper Black', Georgia, serif",
-    rubik: "'Rubik One', 'Arial Black', sans-serif", rozha: "'Rozha One', Georgia, serif", sans: "Raleway, 'Helvetica Neue', Arial, sans-serif",
+    rubik: "'Rubik One', 'Arial Black', sans-serif", rozha: "'Rozha One', Georgia, serif", sans: "Raleway, 'Helvetica Neue', Arial, sans-serif", ball: "Playball, 'Brush Script MT', cursive",
   };
   const l = document.createElement('link');
   l.rel = 'stylesheet';
-  l.href = 'https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&family=Playfair+Display&family=Fraunces:opsz,wght,SOFT,WONK@144,900,100,0&family=Rubik+One&family=Rozha+One&family=Raleway:wght@300&display=swap';
+  l.href = 'https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&family=Playfair+Display&family=Fraunces:opsz,wght,SOFT,WONK@144,900,100,0&family=Rubik+One&family=Rozha+One&family=Raleway:wght@300&family=Playball&display=swap';
   document.head.appendChild(l);
 
   /* gray: fotografija crno-bela kao u dizajnu; dark: tamnije prazno mesto (beli tekst preko fotografije)
      t: tekstovi { k, label, s: podrazumevano, f: font, wt: debljina, z: veličina, ls: razmak slova (px), x, y: osnovna linija, a: start|middle|end, c: boja, w: najveća širina }
      p: mesta za fotografije [x, y, w, h]; d: linije [x1, y1, x2, y2, debljina, boja] */
+  /* Uspomene / Year book: fotografija u okviru boje naslova; menja se samo godina, boja pozadine po izboru,
+     tekst i okvir uvek u boji dizajna. ex = primer slike (ceo dizajn), vidi se dok kupac ne ubaci svoju. */
+  const K = PW / 1414, FT = 29 * K;
+  const frame = (x0, y0, x1, y1) => ({ fr: [x0 * K, y0 * K, (x1 - x0) * K, (y1 - y0) * K, FT], p: [[x0 * K + FT, y0 * K + FT, (x1 - x0) * K - 2 * FT, (y1 - y0) * K - 2 * FT]] });
+  const fx = (k, s, f, z, ls, x, y, c, a) => ({ k, s, f, z, ls, x, y, a: a || 'start', c, w: 2400, fx: true });
+  const yr = (s, f, z, x, y, c) => ({ k: 'y', label: 'Godina', s, f, z, ls: 0, x, y, a: 'middle', c, w: 1800 });
+  const YB = [
+    Object.assign({ id: 'ybyearbook', m: ['a', 'y'], name: 'Year book', title: 'YEAR BOOK', ex: 'korice/primeri/yearbook.webp', bg: '#ffd6d6', ink: '#aa1819', accent: '#aa1819',
+      t: [fx('a', 'YEAR BOOK', 'play', 405.1, -24.7, 232, 586, '#aa1819'), yr('2026', 'play', 364.2, 1241, 3255, '#aa1819')] }, frame(236, 469, 1178, 1531)),
+    Object.assign({ id: 'ybour2026', m: ['a', 'y'], name: 'Our 2026', title: 'our 2026', ex: 'korice/primeri/our2026.webp', bg: '#eee4cc', ink: '#a86d6f', accent: '#a86d6f',
+      t: [fx('a', 'our', 'ball', 759.4, 0, 755, 576, '#a86d6f'), yr('2026', 'ball', 512.7, 1270, 3298, '#a86d6f')] }, frame(236, 469, 1178, 1531)),
+    Object.assign({ id: 'ybmemories', m: ['a', 'b'], name: 'Our memories', title: 'our MEMORIES', ex: 'korice/primeri/ourmemories.webp', bg: '#c6e1fe', ink: '#0b6a7c', accent: '#0b6a7c',
+      t: [fx('a', 'our', 'ball', 462.1, 0, 944, 2845, '#0b6a7c'), fx('b', 'MEMORIES', 'play', 405.1, -24.3, 268, 3224, '#0b6a7c')] }, frame(236, 305, 1178, 1367)),
+    Object.assign({ id: 'ybfamily', m: ['a', 'b'], name: 'Family book 2026', title: 'FAMILY BOOK', ex: 'korice/primeri/familybook2026.webp', bg: '#ffffff', ink: '#aa171b', accent: '#aa171b',
+      t: [yr('2026', 'ball', 178.7, 1223, 470, '#aa171b'), fx('a', 'FAMILY', 'play', 593, -27.5, 287, 2759, '#aa171b'), fx('b', 'BOOK', 'play', 351.4, -20.5, 786, 3155, '#aa171b')] }, frame(149, 366, 1265, 1155)),
+    Object.assign({ id: 'ybyearofus', m: ['a', 'b', 'c'], name: 'A year of us', title: 'a YEAR OF US', ex: 'korice/primeri/ayearofus.webp', bg: '#a91718', ink: '#ffffff', accent: '#ffffff',
+      t: [fx('a', 'a', 'ball', 587.9, 0, 625, 2876, '#ffffff'), fx('b', 'YEAR', 'play', 400.2, -27.5, 958, 2890, '#ffffff'), fx('c', 'OF US', 'play', 402.6, -24.8, 731, 3306, '#ffffff')] }, frame(236, 305, 1178, 1367)),
+    Object.assign({ id: 'ybfriends', m: ['a', 'b'], name: 'Friends moments', title: 'FRIENDS moments', ex: 'korice/primeri/friends.webp', bg: '#3378c7', ink: '#ffffff', accent: '#ffffff',
+      t: [yr('2026', 'ball', 178.7, 1223, 431, '#ffffff'), fx('a', 'FRIENDS', 'play', 497.8, -25.5, 286, 2964, '#ffffff'), fx('b', 'moments', 'ball', 298.8, 0, 718, 3229, '#ffffff')] }, frame(149, 343, 1265, 1346)),
+  ].map((c) => Object.assign(c, { cat: ['usp', 'yb'], bf: 'play', fixInk: true, aka: `${c.title} year book yearbook uspomene memories godina ${c.name}`.toLowerCase() }));
+
   const LIST = [
+    ...YB,
     {
       id: 'phbday', m: ['a', 'b'], name: 'Birthday book', title: 'BIRTHDAY book', cat: ['rodj'], bg: '#d8d0c6', bf: 'serif', ink: '#ffffff', accent: '#ffffff', dark: true,
       aka: 'rodjendan birthday book 18 punoletstvo edition slika fotografija',
@@ -112,7 +134,7 @@
   const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
   const bw = (bg) => (lum(bg) > 0.4 ? '#111111' : '#ffffff');
   // boja teksta: na fotografiji uvek kao u dizajnu; na pozadini boja koju je kupac izabrao, ili dizajnirana ako se dobro vidi
-  const inkFor = (c, t, bg, ink) => (t.on === 'p' || isFull(c) ? t.c : ink || (contrast(t.c, bg) >= 1.7 ? t.c : bw(bg)));
+  const inkFor = (c, t, bg, ink) => (t.on === 'p' || isFull(c) || c.fixInk ? t.c : ink || (contrast(t.c, bg) >= 1.7 ? t.c : bw(bg)));
   const isFull = (c) => !!c && c.p.length === 1 && c.p[0][0] <= 0 && c.p[0][1] <= 0 && c.p[0][2] >= PW && c.p[0][3] >= PH;
   const esc = (s) => String(s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
   const r1 = (n) => Math.round(n * 10) / 10;
@@ -159,9 +181,14 @@
     const pt = o.pt || {}, ph = pt.ph || [];
     const bg = o.bg || c.bg;
     let out = (c.gray ? '<defs><filter id="ttgray" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/></filter></defs>' : '') + `<rect width="${PW}" height="${PH}" fill="${bg}"/>`;
+    if (c.fr) out += `<rect x="${r1(c.fr[0])}" y="${r1(c.fr[1])}" width="${r1(c.fr[2])}" height="${r1(c.fr[3])}" fill="${c.ink}"/>`;
     c.p.forEach(([x, y, w, h], i) => {
       const p = ph[i];
-      if (!(p && p.thumb && p.w)) { out += holder(x, y, w, h, c.dark, c.hy); return; }
+      if (!(p && p.thumb && p.w)) {
+        // primer iz dizajna (cela korica, isečena na mesto fotografije) dok kupac ne ubaci svoju
+        out += c.ex ? `<svg x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" viewBox="${r1(x)} ${r1(y)} ${r1(w)} ${r1(h)}" overflow="hidden"><image href="${c.ex}" width="${PW}" height="${PH}" preserveAspectRatio="none"/></svg>` : holder(x, y, w, h, c.dark, c.hy);
+        return;
+      }
       const f = fit(w, h, p.w, p.h, p);
       out += `<svg x="${x}" y="${y}" width="${w}" height="${h}" overflow="hidden"><image href="${p.thumb}" x="${r1(f.dx)}" y="${r1(f.dy)}" width="${r1(f.dw)}" height="${r1(f.dh)}" preserveAspectRatio="none"${c.gray ? ' filter="url(#ttgray)"' : ''}/></svg>`;
     });
@@ -183,6 +210,7 @@
     g.fillRect(0, 0, PW, PH);
     g.imageSmoothingEnabled = true;
     g.imageSmoothingQuality = 'high';
+    if (c.fr) { g.fillStyle = c.ink; g.fillRect(c.fr[0], c.fr[1], c.fr[2], c.fr[3]); }
     for (let i = 0; i < c.p.length; i++) {
       const [x, y, w, h] = c.p[i], p = (pt.ph || [])[i];
       if (!p) continue;
@@ -219,13 +247,13 @@
   TT.COVERS.unshift(...LIST);
   const prev = TT.coverSVG;
   TT.coverSVG = (c, o) => (c && c.photo ? svg(c, o) : prev(c, o));
-  const GF = { serif: 'Tinos', play: 'Playfair+Display', rubik: 'Rubik+One', rozha: 'Rozha+One' };
+  const GF = { serif: 'Tinos', play: 'Playfair+Display', rubik: 'Rubik+One', rozha: 'Rozha+One', ball: 'Playball' };
   const backFont = (c) => ({ ff: FONT[c.bf || c.t[0].f], fw: 400, gf: GF[c.bf || c.t[0].f] || '' });
   // boja zadnje korice i bočne strane: izbor kupca, ili boja iz njegove fotografije (kad je slika preko cele korice), ili boja dizajna
   function colors(c, pt, bgSel, inkSel) {
     const auto = isFull(c) && pt && pt.ph && pt.ph[0] && pt.ph[0].avg;
     const bg = bgSel || auto || c.bg;
-    const ink = inkSel || (contrast(c.ink, bg) >= 2.2 ? c.ink : bw(bg));
+    const ink = c.fixInk ? c.ink : inkSel || (contrast(c.ink, bg) >= 2.2 ? c.ink : bw(bg));
     return { bg, ink, accent: ink, auto: auto || null };
   }
   window.TTP = { svg, print, layout, fit, ZMAX, LIST, isFull, backFont, colors };
